@@ -26,7 +26,8 @@ import {
   ScanCommand,
   DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 
 // ─── DynamoDB client ──────────────────────────────────────────────────────────
 const TABLE = process.env.DYNAMODB_TABLE ?? "NalaSetu";
@@ -36,9 +37,12 @@ const db = DynamoDBDocumentClient.from(raw, {
   marshallOptions: { removeUndefinedValues: true },
 });
 
-// ─── S3 client ────────────────────────────────────────────────────────────────
+// ─── S3 & Bedrock clients ─────────────────────────────────────────────────────
 const S3_BUCKET = process.env.S3_BUCKET;
 const s3Client = new S3Client({ region: REGION });
+
+const BEDROCK_MODEL_ID = process.env.BEDROCK_MODEL_ID;
+const bedrockClient = new BedrockRuntimeClient({ region: REGION });
 
 // ─── CORS headers ────────────────────────────────────────────────────────────
 // Allow calls from any Vercel/Lovable/localhost origin in the demo environment.
@@ -680,12 +684,13 @@ export async function handler(event) {
       const proofId = decodeURIComponent(pathParts[2]);
       const proof = await getProof(proofId);
       if (!proof) return notFound(`Proof ${proofId} not found`);
-      // Re-verify using demo logic (Bedrock not configured in base Lambda)
-      const verification = { verdict:"REVIEW", confidence: 0, reason:"AI verification requires Bedrock configuration. Routed to manual officer review.", mode:"demo" };
-      const updated = { ...proof, verification, status:"NEEDS_REVIEW", verifiedAt: new Date().toISOString() };
+      // Re-verify using Bedrock or demo fallback
+      const verification = await attemptVerification(proof.beforeS3Key, proof.afterS3Key, proof.drainId, proofId);
+      const status = verification.verdict === "PASS" ? "AI_PASS" : "NEEDS_REVIEW";
+      const updated = { ...proof, verification, status, verifiedAt: new Date().toISOString() };
       await db.send(new PutCommand({ TableName: TABLE, Item: updated }));
       const task = await getTask(proof.taskId);
-      if (task) await db.send(new PutCommand({ TableName: TABLE, Item: { ...task, verification, status:"NEEDS_REVIEW" } }));
+      if (task) await db.send(new PutCommand({ TableName: TABLE, Item: { ...task, verification, status } }));
       const { pk, sk, ...proofOut } = updated;
       return ok({ proof: proofOut, verification });
     }
@@ -785,6 +790,14 @@ export async function handler(event) {
       return ok({ status: "ok", service: "nalasetu-api", table: TABLE, region: REGION });
     }
 
+    // ── POST /api/verify — Test Lab standalone verification (no task required) ─
+    if (method === "POST" && pathParts[1] === "verify" && !pathParts[2]) {
+      const body = parseBody(event);
+      if (!body.before || !body.after) return badRequest("before and after image data required.");
+      const verification = await attemptVerification(body.before, body.after, body.drainId ?? "TEST-LAB", "TEST-LAB");
+      return ok({ verification });
+    }
+
     return notFound(`Unknown endpoint: ${method} ${rawPath}`);
 
   } catch (err) {
@@ -793,8 +806,131 @@ export async function handler(event) {
   }
 }
 
-// ─── AI Verification (demo fallback — Bedrock not required) ───────────────────
-async function attemptVerification(before, after, drainId) {
+// ─── AI Verification (Bedrock Nova Lite + demo fallback) ────────────────────
+async function attemptVerification(beforeData, afterData, drainId, proofId = "unknown") {
+  // If Bedrock is not configured, fall back to demo logic immediately.
+  if (!BEDROCK_MODEL_ID) {
+    return runDemoVerification(beforeData, afterData, drainId);
+  }
+
+  // Missing data -> REVIEW
+  if (!beforeData || !afterData) {
+    return { verdict:"REVIEW", confidence:0, reason:"Missing before or after photo.", mode:"fallback" };
+  }
+  
+  try {
+    let beforeBytes, afterBytes;
+    
+    // If it's a data URI, strip it and parse to buffer
+    if (typeof beforeData === "string" && beforeData.startsWith("data:image")) {
+      beforeBytes = Buffer.from(beforeData.replace(/^data:image\/\w+;base64,/, ""), "base64");
+    } else if (typeof beforeData === "string" && beforeData.startsWith("proofs/")) {
+      // It's an S3 key
+      const beforeRes = await s3Client.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: beforeData }));
+      beforeBytes = await beforeRes.Body.transformToByteArray();
+    } else {
+      throw new Error("Unsupported before image format");
+    }
+
+    if (typeof afterData === "string" && afterData.startsWith("data:image")) {
+      afterBytes = Buffer.from(afterData.replace(/^data:image\/\w+;base64,/, ""), "base64");
+    } else if (typeof afterData === "string" && afterData.startsWith("proofs/")) {
+      const afterRes = await s3Client.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: afterData }));
+      afterBytes = await afterRes.Body.transformToByteArray();
+    } else {
+      throw new Error("Unsupported after image format");
+    }
+
+    // Size limit check (e.g. 5MB per image max)
+    if (beforeBytes.length > 5 * 1024 * 1024 || afterBytes.length > 5 * 1024 * 1024) {
+      return { verdict: "REVIEW", confidence: 0, reason: "Images too large for verification (max 5MB each).", mode: "fallback" };
+    }
+
+    const command = new ConverseCommand({
+      modelId: BEDROCK_MODEL_ID,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { text: "BEFORE CLEANING:" },
+            { image: { format: "jpeg", source: { bytes: beforeBytes } } },
+            { text: "AFTER CLEANING:" },
+            { image: { format: "jpeg", source: { bytes: afterBytes } } },
+            { text: `You are the NalaSetu field-work verification assistant.
+Compare the before-cleaning and after-cleaning images of the same drain.
+Determine whether visible blockage/debris appears to have been
+meaningfully reduced after cleaning.
+
+Do not identify people.
+Do not make claims that cannot be supported by the images.
+Return ONLY JSON:
+{
+  "verdict": "PASS" or "REVIEW",
+  "confidence": number from 0 to 100,
+  "reason": "short evidence-based explanation",
+  "sameLocation": true or false,
+  "obstructionBefore": true or false,
+  "obstructionAfter": true or false
+}
+
+sameLocation: true if both images appear to show the same physical drain location.
+obstructionBefore: true if the before image shows visible blockage, debris, or obstruction.
+obstructionAfter: true if the after image still shows visible blockage, debris, or obstruction.
+
+Use REVIEW when:
+- images are missing,
+- images are unrelated,
+- images are too unclear,
+- the improvement is ambiguous,
+- or confidence is below 70.` }
+          ]
+        }
+      ]
+    });
+
+    const response = await bedrockClient.send(command);
+    const textOutput = response.output?.message?.content?.[0]?.text || "";
+    
+    // Parse robustly
+    const jsonMatch = textOutput.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON found in model output");
+    
+    const parsed = JSON.parse(jsonMatch[0]);
+    let verdict = parsed.verdict;
+    let confidence = Number(parsed.confidence);
+    const reason = parsed.reason || "Model provided no reason";
+    const sameLocation = parsed.sameLocation ?? true;
+    const obstructionBefore = parsed.obstructionBefore ?? true;
+    const obstructionAfter = parsed.obstructionAfter ?? false;
+    
+    if (verdict !== "PASS" && verdict !== "REVIEW") verdict = "REVIEW";
+    if (isNaN(confidence) || confidence < 0 || confidence > 100) confidence = 0;
+    
+    // Safety rule
+    if (confidence < 70) {
+      verdict = "REVIEW";
+    }
+
+    // CloudWatch log without sensitive data
+    console.log(`[Bedrock Verification] Drain: ${drainId}, Proof: ${proofId}, Model: ${BEDROCK_MODEL_ID}, Verdict: ${verdict}, Confidence: ${confidence}`);
+
+    return {
+      verdict,
+      confidence,
+      reason,
+      sameLocation,
+      obstructionBefore,
+      obstructionAfter,
+      mode: "bedrock"
+    };
+
+  } catch (err) {
+    console.error(`[Bedrock Verification] Failed for drain ${drainId}, proof ${proofId}:`, err);
+    return { verdict: "REVIEW", confidence: 0, reason: "AI verification failed or timed out. Routed to manual review.", mode: "fallback" };
+  }
+}
+
+function runDemoVerification(before, after, drainId) {
   // If photos are identical or missing → REVIEW
   if (!before || !after) {
     return { verdict:"REVIEW", confidence:0, reason:"Missing before or after photo.", mode:"demo" };
@@ -802,7 +938,7 @@ async function attemptVerification(before, after, drainId) {
   if (before === after) {
     return { verdict:"REVIEW", confidence:22, reason:"Before and after images are identical — no visible change.", mode:"demo" };
   }
-  // Deterministic hash-based demo verdict (matches frontend demoVerifier)
+  // Deterministic hash-based demo verdict
   function hash(s) {
     let h=2166136261;
     for(let i=0;i<s.length;i+=Math.max(1,Math.floor(s.length/4000))){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); }

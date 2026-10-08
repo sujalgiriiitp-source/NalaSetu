@@ -65,8 +65,24 @@ function SettingsPage() {
           <p className="mt-2 text-xs text-muted-foreground">Live failures fall back to Cached, then Demo — always labelled. Current: {n.forecastMm} mm / 72h.</p>
         </Panel>
         <Panel title="AI provider">
-          <div className="flex gap-2"><Opt on onClick={() => {}}>Lovable AI</Opt><Button size="sm" variant="outline" disabled>Bedrock (not configured)</Button></div>
-          <p className="mt-2 text-xs text-muted-foreground">Photos are assessed by an AI model for same location and reduced obstruction. Confidence &lt; 70, any red flag, or AI unavailable → Needs Review. Officers always make the final call.</p>
+          <div className="flex gap-2 items-center">
+            {n.awsStatus === "connected" ? (
+              <>
+                <Button size="sm" variant="default">Amazon Bedrock — Nova Lite</Button>
+                <Tag tone="ok">Connected</Tag>
+              </>
+            ) : (
+              <>
+                <Opt on onClick={() => {}}>Lovable AI</Opt>
+                <Button size="sm" variant="outline" disabled>Bedrock (not configured)</Button>
+              </>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {n.awsStatus === "connected"
+              ? "Proof photos are sent to AWS Lambda → Amazon Bedrock Nova Lite for multimodal AI verification. Confidence < 70 or any red flag → Needs Review. Officers always make the final call."
+              : "Photos are assessed by an AI model for same location and reduced obstruction. Confidence < 70, any red flag, or AI unavailable → Needs Review. Officers always make the final call."}
+          </p>
         </Panel>
         <Panel title="AWS status">
           <div className="flex items-center gap-2 mb-3">

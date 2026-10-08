@@ -96,7 +96,7 @@ export interface AwsTask {
     verdict: "PASS" | "REVIEW";
     confidence: number;
     reason: string;
-    mode: "lovable-ai" | "bedrock" | "demo";
+    mode: "lovable-ai" | "bedrock" | "demo" | "fallback";
   };
   officerDecision?: "APPROVED" | "REJECTED";
   officerAt?: string;
@@ -140,7 +140,10 @@ export interface AwsVerification {
   verdict: "PASS" | "REVIEW";
   confidence: number;
   reason: string;
-  mode: "lovable-ai" | "bedrock" | "demo";
+  sameLocation?: boolean;
+  obstructionBefore?: boolean;
+  obstructionAfter?: boolean;
+  mode: "lovable-ai" | "bedrock" | "demo" | "fallback";
 }
 
 // ─── API endpoints ────────────────────────────────────────────────────────────
