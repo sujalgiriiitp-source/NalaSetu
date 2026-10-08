@@ -24,7 +24,9 @@ import {
   UpdateCommand,
   BatchWriteCommand,
   ScanCommand,
+  DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 // ─── DynamoDB client ──────────────────────────────────────────────────────────
 const TABLE = process.env.DYNAMODB_TABLE ?? "NalaSetu";
@@ -33,6 +35,10 @@ const raw = new DynamoDBClient({ region: REGION });
 const db = DynamoDBDocumentClient.from(raw, {
   marshallOptions: { removeUndefinedValues: true },
 });
+
+// ─── S3 client ────────────────────────────────────────────────────────────────
+const S3_BUCKET = process.env.S3_BUCKET;
+const s3Client = new S3Client({ region: REGION });
 
 // ─── CORS headers ────────────────────────────────────────────────────────────
 // Allow calls from any Vercel/Lovable/localhost origin in the demo environment.
@@ -399,7 +405,25 @@ export async function handler(event) {
       }));
 
       await batchPut(items);
-      return ok({ seeded: items.length, message: `Seeded ${items.length} drain records into DynamoDB (idempotent).` });
+
+      // Also wipe existing tasks, plans, and proofs for clean state
+      const allTasks = await getAllTasks();
+      const allProofs = await db.send(new ScanCommand({
+        TableName: TABLE,
+        FilterExpression: "pk = :pk",
+        ExpressionAttributeValues: { ":pk": "PROOF" },
+      })).then(r => r.Items ?? []);
+      const allPlans = await db.send(new ScanCommand({
+        TableName: TABLE,
+        FilterExpression: "pk = :pk",
+        ExpressionAttributeValues: { ":pk": "PLAN" },
+      })).then(r => r.Items ?? []);
+
+      for (const t of allTasks) await db.send(new DeleteCommand({ TableName: TABLE, Key: { pk: "TASK", sk: t.sk } }));
+      for (const p of allProofs) await db.send(new DeleteCommand({ TableName: TABLE, Key: { pk: "PROOF", sk: p.sk } }));
+      for (const p of allPlans) await db.send(new DeleteCommand({ TableName: TABLE, Key: { pk: "PLAN", sk: p.sk } }));
+
+      return ok({ seeded: items.length, message: `Seeded ${items.length} drain records and wiped all tasks/proofs/plans.` });
     }
 
     // ── POST /api/risk/recompute ──────────────────────────────────────────────
@@ -544,14 +568,47 @@ export async function handler(event) {
         taskId,
         drainId: task.drainId,
         crewId: task.crewId,
-        // Store metadata only — not the raw base64 images (avoid DynamoDB item size limit)
-        beforePhotoSize: body.before ? body.before.length : 0,
-        afterPhotoSize: body.after ? body.after.length : 0,
-        hasBeforePhoto: !!body.before,
-        hasAfterPhoto: !!body.after,
         submittedAt: new Date().toISOString(),
         status: "PENDING_VERIFICATION",
       };
+
+      if (S3_BUCKET) {
+        try {
+          if (body.before) {
+            const b64Data = body.before.replace(/^data:image\/\w+;base64,/, "");
+            const buffer = Buffer.from(b64Data, "base64");
+            const key = `proofs/${taskId}/before-${Date.now()}.jpg`;
+            await s3Client.send(new PutObjectCommand({
+              Bucket: S3_BUCKET,
+              Key: key,
+              Body: buffer,
+              ContentType: "image/jpeg",
+            }));
+            proof.beforeS3Key = key;
+          }
+          if (body.after) {
+            const b64Data = body.after.replace(/^data:image\/\w+;base64,/, "");
+            const buffer = Buffer.from(b64Data, "base64");
+            const key = `proofs/${taskId}/after-${Date.now()}.jpg`;
+            await s3Client.send(new PutObjectCommand({
+              Bucket: S3_BUCKET,
+              Key: key,
+              Body: buffer,
+              ContentType: "image/jpeg",
+            }));
+            proof.afterS3Key = key;
+          }
+        } catch (err) {
+          console.error("S3 upload failed:", err);
+          // Failsafe: Continue without S3 keys so demo logic doesn't break
+        }
+      }
+
+      // Store metadata only — not the raw base64 images (avoid DynamoDB item size limit)
+      proof.beforePhotoSize = body.before ? body.before.length : 0;
+      proof.afterPhotoSize = body.after ? body.after.length : 0;
+      proof.hasBeforePhoto = !!body.before;
+      proof.hasAfterPhoto = !!body.after;
       // Attempt AI verification inline (Lovable AI or demo fallback)
       const verification = await attemptVerification(body.before, body.after, task.drainId);
       proof.verification = verification;
