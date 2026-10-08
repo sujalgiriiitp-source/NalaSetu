@@ -165,7 +165,7 @@ export function NalaProvider({ children }: { children: ReactNode }) {
     setS((p) => ({ ...p, plan, audit: log(p, { actor: "Officer (demo)", drainId: "—", oldStatus: null, newStatus: null, reason: `Generated plan ${plan.id}` }) }));
     // Fire-and-forget: also persist to AWS if configured (non-blocking)
     if (AWS_CONFIGURED) {
-      void generatePlanAws({ scenario: sRef.current.scenario, forecastMm72h: sRef.current.weatherCache?.forecastMm72h ?? SCENARIO_MM[sRef.current.scenario] })
+      void generatePlanAws({ scenario: sRef.current.scenario, forecastMm72h: sRef.current.weatherMode === "demo" ? SCENARIO_MM[sRef.current.scenario] : (sRef.current.weatherCache?.forecastMm72h ?? SCENARIO_MM[sRef.current.scenario]) })
         .then((res) => { if (!res.ok) console.warn("[AWS] generatePlan failed:", res.error); });
     }
     return plan;

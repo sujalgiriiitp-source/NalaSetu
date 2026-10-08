@@ -248,14 +248,19 @@ function optimizePlan(drains, crews) {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}${Math.floor(Math.random()*1e4).toString(36)}`.toUpperCase();
 
-function enrichDrain(base, forecastMm72, status) {
-  const risk = scoreRisk(base, forecastMm72);
+function getDrainRain(base, globalForecastMm) {
+  return Number((base.rainfallForecastMm * (globalForecastMm / 55)).toFixed(1));
+}
+
+function enrichDrain(base, globalForecastMm, status) {
+  const drainRain = getDrainRain(base, globalForecastMm);
+  const risk = scoreRisk(base, drainRain);
   return {
     ...base,
     status: status ?? "UNASSIGNED",
     riskScore: risk.score,
     riskBand: risk.band,
-    riskReasons: riskReasons(base, forecastMm72),
+    riskReasons: riskReasons(base, drainRain),
     recommendation: recommendation(risk.band),
   };
 }
@@ -431,21 +436,24 @@ export async function handler(event) {
       const body = parseBody(event);
       const drains = await getAllDrains();
       const settings = await getSettings();
-      const forecastMm72 = body.forecastMm72h ?? SCENARIO_MM[settings.scenario] ?? 55;
+      const forecastMm72 = (settings.weatherMode === "live" && typeof body.forecastMm72h === "number") 
+        ? body.forecastMm72h 
+        : (SCENARIO_MM[settings.scenario] ?? 55);
 
       if (drains.length === 0) {
         return ok({ updated: 0, counts: { HIGH:0, MEDIUM:0, LOW:0 }, message: "No drains in DynamoDB — seed first." });
       }
 
       const updates = drains.map(d => {
-        const risk = scoreRisk(d, forecastMm72);
+        const drainRain = getDrainRain(d, forecastMm72);
+        const risk = scoreRisk(d, drainRain);
         return {
           ...d,
           pk: "DRAIN",
           sk: d.id ?? d.sk,
           riskScore: risk.score,
           riskBand: risk.band,
-          riskReasons: riskReasons(d, forecastMm72),
+          riskReasons: riskReasons(d, drainRain),
           recommendation: recommendation(risk.band),
           forecastMm72,
           recomputedAt: new Date().toISOString(),
@@ -463,7 +471,9 @@ export async function handler(event) {
       const body = parseBody(event);
       const settings = await getSettings();
       const scenario = body.scenario ?? settings.scenario ?? "heavy";
-      const forecastMm72 = body.forecastMm72h ?? SCENARIO_MM[scenario] ?? 55;
+      const forecastMm72 = (settings.weatherMode === "live" && typeof body.forecastMm72h === "number") 
+        ? body.forecastMm72h 
+        : (SCENARIO_MM[scenario] ?? 55);
 
       const dbDrains = await getAllDrains();
       const tasks = await getAllTasks();
