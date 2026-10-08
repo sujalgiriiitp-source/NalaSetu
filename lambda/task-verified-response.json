@@ -1,0 +1,1 @@
+{"statusCode":400,"headers":{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS","Access-Control-Allow-Headers":"Content-Type,Accept","Content-Type":"application/json"},"body":"{\"error\":\"Invalid transition: VERIFIED → VERIFIED\"}"}

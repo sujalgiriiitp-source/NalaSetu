@@ -1,0 +1,11 @@
+{
+  "name": "nalasetu-api",
+  "version": "1.0.0",
+  "description": "NalaSetu AWS Lambda API — drain risk management",
+  "main": "index.mjs",
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0"
+  }
+}

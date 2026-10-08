@@ -1,0 +1,1 @@
+{"statusCode":200,"headers":{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS","Access-Control-Allow-Headers":"Content-Type,Accept","Content-Type":"application/json"},"body":"{\"seeded\":40,\"message\":\"Seeded 40 drain records into DynamoDB (idempotent).\"}"}

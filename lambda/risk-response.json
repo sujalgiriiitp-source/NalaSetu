@@ -1,0 +1,1 @@
+{"statusCode":200,"headers":{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS","Access-Control-Allow-Headers":"Content-Type,Accept","Content-Type":"application/json"},"body":"{\"updated\":40,\"counts\":{\"HIGH\":11,\"MEDIUM\":29,\"LOW\":0},\"forecastMm72\":55}"}
