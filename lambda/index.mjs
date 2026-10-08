@@ -265,6 +265,36 @@ function enrichDrain(base, globalForecastMm, status) {
   };
 }
 
+async function refreshWeather() {
+  const current = await getSettings();
+  try {
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=28.63&longitude=77.22&hourly=precipitation&forecast_days=3&timezone=Asia%2FKolkata";
+    // Using global fetch in Node.js 18+
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    const hourly = j.hourly.time.slice(0, 72).map((t, i) => ({ time: t, mm: j.hourly.precipitation[i] ?? 0 }));
+    const forecastMm72h = Number(hourly.reduce((a, h) => a + h.mm, 0).toFixed(1));
+    
+    const updated = {
+      ...current,
+      pk: "SETTINGS",
+      sk: "DEFAULT",
+      weatherCache: {
+        forecastMm72h,
+        hourly,
+        fetchedAt: new Date().toISOString(),
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    await db.send(new PutCommand({ TableName: TABLE, Item: updated }));
+    return { ok: true, forecastMm72h, fetchedAt: updated.weatherCache.fetchedAt };
+  } catch (err) {
+    console.error("Open-Meteo fetch failed:", err);
+    return { ok: false, error: err.message };
+  }
+}
+
 // ─── DynamoDB helpers ─────────────────────────────────────────────────────────
 async function getDrainFromDb(id) {
   const res = await db.send(new GetCommand({ TableName: TABLE, Key: { pk: "DRAIN", sk: id } }));
@@ -346,6 +376,13 @@ function parseBody(event) {
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 export async function handler(event) {
+  // Handle EventBridge scheduler invocation or direct invoke for weather refresh
+  if (event.action === "refresh_weather" || event.source === "aws.events" || event["detail-type"] === "Scheduled Event") {
+    console.log("Running scheduled weather refresh...");
+    const res = await refreshWeather();
+    return res.ok ? { statusCode: 200, body: JSON.stringify(res) } : { statusCode: 500, body: JSON.stringify(res) };
+  }
+
   const method = event.httpMethod ?? event.requestContext?.http?.method ?? "GET";
   const rawPath = event.rawPath ?? event.path ?? "/";
   const pathParts = rawPath.replace(/^\//, "").split("/");
@@ -734,6 +771,10 @@ export async function handler(event) {
         weatherMode: updated.weatherMode ?? "demo",
         updatedAt: updated.updatedAt,
       };
+      // Preserve weatherCache if it exists
+      if (current.weatherCache) {
+        safe.weatherCache = current.weatherCache;
+      }
       await db.send(new PutCommand({ TableName: TABLE, Item: safe }));
       const { pk, sk, ...out } = safe;
       return ok(out);
