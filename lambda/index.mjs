@@ -841,6 +841,16 @@ async function attemptVerification(beforeData, afterData, drainId, proofId = "un
       throw new Error("Unsupported after image format");
     }
 
+    const getFormat = (buf) => {
+      if (buf.length > 4 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return "png";
+      if (buf.length > 12 && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return "webp";
+      if (buf.length > 3 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return "gif";
+      return "jpeg";
+    };
+
+    const beforeFormat = getFormat(beforeBytes);
+    const afterFormat = getFormat(afterBytes);
+
     // Size limit check (e.g. 5MB per image max)
     if (beforeBytes.length > 5 * 1024 * 1024 || afterBytes.length > 5 * 1024 * 1024) {
       return { verdict: "REVIEW", confidence: 0, reason: "Images too large for verification (max 5MB each).", mode: "fallback" };
@@ -853,9 +863,9 @@ async function attemptVerification(beforeData, afterData, drainId, proofId = "un
           role: "user",
           content: [
             { text: "BEFORE CLEANING:" },
-            { image: { format: "jpeg", source: { bytes: beforeBytes } } },
+            { image: { format: beforeFormat, source: { bytes: beforeBytes } } },
             { text: "AFTER CLEANING:" },
-            { image: { format: "jpeg", source: { bytes: afterBytes } } },
+            { image: { format: afterFormat, source: { bytes: afterBytes } } },
             { text: `You are the NalaSetu field-work verification assistant.
 Compare the before-cleaning and after-cleaning images of the same drain.
 Determine whether visible blockage/debris appears to have been
