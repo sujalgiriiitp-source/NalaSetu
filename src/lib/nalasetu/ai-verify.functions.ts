@@ -9,7 +9,7 @@ export const verifyProof = createServerFn({ method: "POST" })
     if (data.before === data.after) return { ok: true as const, verdict: "REVIEW" as const, confidence: 0, reason: "Before and after images are identical.", sameLocation: true, obstructionBefore: true, obstructionAfter: true, mode: "demo" as const };
 
     // Route through the AWS Lambda API (which internally calls Bedrock)
-    const apiUrl = process.env["VITE_NALASETU_API_URL"];
+    const apiUrl = (typeof process !== "undefined" ? (process.env["NALASETU_API_URL"] ?? process.env["VITE_NALASETU_API_URL"]) : undefined) ?? (typeof import.meta !== "undefined" ? import.meta.env?.["VITE_NALASETU_API_URL"] : undefined);
     if (apiUrl) {
       try {
         const controller = new AbortController();

@@ -20,8 +20,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { buildDemoDrains } from "@/lib/nalasetu/data";
 
 const SERVER_API_URL =
-  process.env["NALASETU_API_URL"] ??
-  process.env["VITE_NALASETU_API_URL"] ??
+  (typeof process !== "undefined" ? (process.env["NALASETU_API_URL"] ?? process.env["VITE_NALASETU_API_URL"]) : undefined) ??
+  (typeof import.meta !== "undefined" ? (import.meta.env?.["VITE_NALASETU_API_URL"] as string) : undefined) ??
   "";
 
 async function lambdaFetch<T>(path: string, body: unknown, timeoutMs = 30_000): Promise<T> {
