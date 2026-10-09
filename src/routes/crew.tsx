@@ -10,6 +10,7 @@ import { RiskBadge, StatusBadge, Tag } from "@/components/nala/badges";
 import { useNala } from "@/lib/nalasetu/store";
 import { crewName } from "@/lib/nalasetu/data";
 import { processPhoto } from "@/lib/nalasetu/verify";
+import { FIXTURES, urlToJpegDataUrl } from "@/lib/nalasetu/verification-fixtures";
 import type { Task, TaskStatus } from "@/lib/nalasetu/types";
 
 export const Route = createFileRoute("/crew")({
@@ -100,6 +101,17 @@ function TaskCard({ task, hero }: { task: Task; hero?: boolean }) {
     catch (e) { toast.error((e as Error).message); }
     finally { setBusy(null); }
   };
+  const useSamplePhotos = async () => {
+    const fx = FIXTURES.find((f) => f.id === "genuine") ?? FIXTURES[0];
+    setBusy("sample");
+    try {
+      const [b, a] = await Promise.all([urlToJpegDataUrl(fx.before), urlToJpegDataUrl(fx.after)]);
+      n.setPhoto(task.id, "before", b);
+      n.setPhoto(task.id, "after", a);
+      toast.success("Demo sample photos attached (synthetic, not field photos).");
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setBusy(null); }
+  };
   const submit = async () => {
     setBusy("submit"); setFailed(false);
     try { await n.submitProof(task.id); toast.success("Proof submitted for verification."); }
@@ -143,6 +155,8 @@ function TaskCard({ task, hero }: { task: Task; hero?: boolean }) {
         {d.status === "EN_ROUTE" && <Button className={big} onClick={() => n.transition(d.id, "CLEANING", actor, "Crew on site, cleaning")}><Wrench className="h-5 w-5" />Start Cleaning</Button>}
         {d.status === "CLEANING" && (<>
           <div className="grid grid-cols-2 gap-2"><PhotoBtn kind="before" /><PhotoBtn kind="after" disabled={!task.beforePhoto} /></div>
+          <Button variant="ghost" className="w-full text-xs text-muted-foreground" disabled={busy === "sample"} onClick={useSamplePhotos}>{busy === "sample" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}Use sample demo photos (synthetic)</Button>
+          <p className="-mt-1 text-center text-[11px] text-muted-foreground">Demo only — sample images, not real field photos.</p>
           {failed && <div className="rounded-md border border-st-review/30 bg-st-review/10 p-2 text-sm font-semibold text-st-review">Proof Pending — Retry</div>}
           <Button className={big} disabled={!task.beforePhoto || !task.afterPhoto || busy === "submit"} onClick={submit}>
             {busy === "submit" ? <Loader2 className="h-5 w-5 animate-spin" /> : failed ? <RotateCw className="h-5 w-5" /> : <Upload className="h-5 w-5" />}
