@@ -883,13 +883,13 @@ Return ONLY JSON:
   "obstructionAfter": true or false
 }
 
-sameLocation: true if both images appear to show the same physical drain location.
+sameLocation: true ONLY IF both images share identical, unmistakable, immovable landmarks (such as walls, pipes, or distinct pavement patterns). If the images just show dirt or grass, or you are at all uncertain, you MUST set sameLocation to false.
 obstructionBefore: true if the before image shows visible blockage, debris, or obstruction.
 obstructionAfter: true if the after image still shows visible blockage, debris, or obstruction.
 
 Use REVIEW when:
 - images are missing,
-- images are unrelated,
+- images are unrelated or of different locations,
 - images are too unclear,
 - the improvement is ambiguous,
 - or confidence is below 70.` }
@@ -916,8 +916,14 @@ Use REVIEW when:
     if (verdict !== "PASS" && verdict !== "REVIEW") verdict = "REVIEW";
     if (isNaN(confidence) || confidence < 0 || confidence > 100) confidence = 0;
     
-    // Safety rule
+    // Safety rules
     if (confidence < 70) {
+      verdict = "REVIEW";
+    }
+    if (!sameLocation) {
+      verdict = "REVIEW";
+    }
+    if (obstructionAfter) {
       verdict = "REVIEW";
     }
 
