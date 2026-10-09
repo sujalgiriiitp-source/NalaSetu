@@ -145,34 +145,35 @@
 
 /* ===== NalaSetu municipal operations theme ===== */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.984 0.003 247.858); /* #F8FAFC */
-  --foreground: oklch(0.21 0.034 264.665);  /* #111827 */
+  --radius: 0.5rem;
+  --background: oklch(0.975 0.008 247.858); /* #F5F7FA */
+  --foreground: oklch(0.2 0.035 264.665); /* deep navy */
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.21 0.034 264.665);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.034 264.665);
-  --primary: oklch(0.21 0.034 264.665);
+  --primary: oklch(0.25 0.055 264.665);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.003 264.542);
+  --secondary: oklch(0.948 0.008 264.542);
   --secondary-foreground: oklch(0.21 0.034 264.665);
-  --muted: oklch(0.967 0.003 264.542);
+  --muted: oklch(0.948 0.008 264.542);
   --muted-foreground: oklch(0.554 0.046 257.417); /* #64748B */
-  --accent: oklch(0.967 0.003 264.542);
+  --accent: oklch(0.935 0.014 246);
   --accent-foreground: oklch(0.21 0.034 264.665);
-  --border: oklch(0.928 0.006 264.531); /* #E5E7EB */
-  --input: oklch(0.928 0.006 264.531);
+  --border: oklch(0.89 0.012 264.531); /* #D9DEE7 */
+  --input: oklch(0.89 0.012 264.531);
   --ring: oklch(0.546 0.245 262.881);
   --info: oklch(0.546 0.245 262.881); /* #2563EB */
-  --sidebar: oklch(1 0 0);
+  --sidebar: oklch(0.985 0.006 248);
   --sidebar-foreground: oklch(0.446 0.03 256.802);
-  --sidebar-accent: oklch(0.967 0.003 264.542);
-  --sidebar-border: oklch(0.928 0.006 264.531);
-  --shadow-card: 0 1px 2px 0 oklch(0.21 0.034 264.665 / 0.04);
-  --shadow-raised: 0 4px 12px -4px oklch(0.21 0.034 264.665 / 0.12);
-  --risk-high: oklch(0.577 0.215 27.3);   /* #DC2626 */
+  --sidebar-accent: oklch(0.935 0.014 246);
+  --sidebar-border: oklch(0.89 0.012 264.531);
+  --shadow-card:
+    0 1px 2px oklch(0.21 0.034 264.665 / 0.04), 0 4px 12px oklch(0.21 0.034 264.665 / 0.03);
+  --shadow-raised: 0 8px 20px -10px oklch(0.21 0.034 264.665 / 0.2);
+  --risk-high: oklch(0.577 0.215 27.3); /* #DC2626 */
   --risk-medium: oklch(0.769 0.165 70.1); /* #F59E0B */
-  --risk-low: oklch(0.627 0.17 149.2);    /* #16A34A */
+  --risk-low: oklch(0.627 0.17 149.2); /* #16A34A */
   --st-assigned: oklch(0.55 0.2 260);
   --st-enroute: oklch(0.55 0.2 293);
   --st-cleaning: oklch(0.67 0.16 65);
@@ -201,5 +202,37 @@
   --color-demo: var(--demo);
   --color-demo-foreground: var(--demo-foreground);
 }
-body { font-family: var(--font-sans); font-feature-settings: "tnum" 1; }
-.leaflet-container { font-family: var(--font-sans); }
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.005em;
+}
+.leaflet-container {
+  font-family: var(--font-sans);
+}
+
+@layer base {
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    transition:
+      color 150ms ease,
+      background-color 150ms ease,
+      border-color 150ms ease,
+      box-shadow 150ms ease,
+      transform 150ms ease;
+  }
+  :focus-visible {
+    outline: 2px solid var(--info);
+    outline-offset: 2px;
+  }
+}
+
+.ops-grid {
+  background-image:
+    linear-gradient(to right, oklch(0.2 0.035 264.665 / 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.2 0.035 264.665 / 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
