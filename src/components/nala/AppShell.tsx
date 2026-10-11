@@ -218,7 +218,7 @@ function Shell({
             </span>
           </div>
         </div>
-        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5 pb-4">
+        <nav aria-label="Primary navigation" className="flex-1 space-y-6 overflow-y-auto px-3 py-5 pb-4">
           {groups.map((g) => (
             <div key={g.label}>
               <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80">
@@ -230,13 +230,14 @@ function Shell({
                     key={n.label}
                     to={n.to}
                     activeOptions={{ exact: true }}
-                    className="relative flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] transition-colors duration-150 hover:bg-sidebar-accent hover:text-foreground"
+                    className="relative flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] transition-colors duration-150 hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info"
                     activeProps={
                       n.hash
                         ? {}
                         : {
+                            "aria-current": "page",
                             className:
-                              "bg-sidebar-accent font-semibold text-foreground before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-foreground",
+                              "bg-sidebar-accent font-semibold text-foreground before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-foreground focus-visible:ring-2 focus-visible:ring-info",
                           }
                     }
                   >
@@ -255,30 +256,33 @@ function Shell({
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <nav className="flex gap-1 overflow-x-auto border-b bg-card px-2 py-1.5 lg:hidden">
+        <nav aria-label="Primary navigation" className="flex gap-1 overflow-x-auto border-b bg-card px-2 py-1.5 lg:hidden">
           {flat.map((n) => (
             <Link
               key={n.label}
               to={n.to}
-              className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground"
-              activeProps={{ className: "bg-accent font-semibold text-foreground" }}
+              className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info"
+              activeProps={{
+                "aria-current": "page",
+                className: "bg-accent font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-info",
+              }}
             >
               <n.icon className="h-3.5 w-3.5" aria-hidden />
               {n.label}
             </Link>
           ))}
         </nav>
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-4 py-4 md:px-8">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-4 py-4 md:px-6 xl:px-8">
           <div>
-            <h1 className="text-base font-semibold tracking-tight">{title}</h1>
-            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+            <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+            {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
           </div>
           <HeaderStatus />
         </header>
         {actions && (
           <div className="flex flex-wrap gap-2 border-b bg-card px-4 py-2 md:px-6">{actions}</div>
         )}
-        <main className="ops-grid flex-1 p-4 md:p-8">{children}</main>
+        <main className="ops-grid flex-1 p-3 sm:p-4 md:p-6 xl:p-8">{children}</main>
       </div>
     </div>
   );
@@ -298,9 +302,9 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <section className={`rounded-md border bg-card shadow-card ${className}`}>
+    <section className={`rounded-lg border bg-card shadow-card ${className}`}>
       {title && (
-        <div className="flex items-start justify-between gap-2 border-b px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-2 border-b px-4 py-3.5 sm:px-5 sm:py-4">
           <div>
             <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
             {subtitle && <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>}
@@ -308,7 +312,7 @@ export function Panel({
           {right}
         </div>
       )}
-      <div className="p-5">{children}</div>
+      <div className="p-4 sm:p-5">{children}</div>
     </section>
   );
 }
@@ -325,7 +329,7 @@ export function Kpi({
   tone?: "high" | "ok" | undefined;
 }) {
   return (
-    <div className="rounded-md border bg-card px-4 py-3 shadow-card">
+    <div className="rounded-lg border bg-card px-4 py-3 shadow-card">
       <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </div>

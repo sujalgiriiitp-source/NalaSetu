@@ -44,7 +44,7 @@ function DrainsPage() {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden />
-          <Input className="h-9 w-64 pl-8 shadow-card" placeholder="Search name or ID" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" />
+          <Input className="h-10 w-full pl-8 shadow-card sm:w-64" placeholder="Search name or ID" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" />
         </div>
         <div className="inline-flex rounded-md border bg-card p-0.5 shadow-card" role="group" aria-label="Risk filter">
           {(["ALL", "HIGH", "MEDIUM", "LOW"] as const).map((b) => (
@@ -57,14 +57,20 @@ function DrainsPage() {
         <select className={sel} value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status"><option value="ALL">All status</option>{Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
         <span className="ml-auto text-xs text-muted-foreground tabular-nums">{rows.length} of {drains.length} shown</span>
       </div>
-      <div className="max-h-[calc(100vh-220px)] overflow-auto rounded-xl border bg-card shadow-card">
-        <table className="w-full text-sm">
+      <div className="max-h-[calc(100vh-220px)] overflow-auto rounded-xl border bg-card shadow-card" role="region" aria-label="Drain table" tabIndex={0}>
+        <table className="min-w-[980px] w-full text-sm" aria-label="Drain risk and operations">
+          <caption className="sr-only">Drain segments with risk scores, rainfall, and current task status</caption>
           <thead className="sticky top-0 z-10 border-b bg-muted/95 text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur"><tr>
             <H k="id">ID</H><H k="name">Drain</H><th className="px-3 text-left font-medium">Risk</th><H k="riskScore" right>Score</H><th className="px-3 text-right font-medium">Rainfall</th><H k="historicalChokes" right>Chokes</H><H k="citizenReports" right>Reports</H><th className="px-3 text-left font-medium">Terrain</th><H k="cleaningTimeMin" right>Clean time</H><th className="px-3 text-left font-medium">Status</th><th className="px-3 text-right font-medium">Action</th>
           </tr></thead>
           <tbody>
             {rows.map((d: Drain) => (
-              <tr key={d.id} tabIndex={0} className={`cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none ${d.riskBand === "HIGH" ? "shadow-[inset_3px_0_0_var(--risk-high)]" : ""}`} onClick={() => setOpen(d.id)} onKeyDown={(e) => e.key === "Enter" && setOpen(d.id)}>
+              <tr key={d.id} tabIndex={0} className={`cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-info ${d.riskBand === "HIGH" ? "shadow-[inset_3px_0_0_var(--risk-high)]" : ""}`} onClick={() => setOpen(d.id)} onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setOpen(d.id);
+                }
+              }}>
                 <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">{d.id}</td><td className="min-w-[200px] px-3 font-medium">{d.name}</td><td className="px-3"><RiskBadge band={d.riskBand} /></td>
                 <td className="px-3 text-right"><div className="flex items-center justify-end gap-2"><div className="hidden h-1.5 w-12 rounded-full bg-muted md:block"><div className={`h-1.5 rounded-full ${d.riskBand === "HIGH" ? "bg-risk-high" : d.riskBand === "MEDIUM" ? "bg-risk-medium" : "bg-risk-low"}`} style={{ width: `${d.riskScore}%` }} /></div><span className="w-6 font-semibold tabular-nums">{d.riskScore}</span></div></td>
                 <td className="px-3 text-right tabular-nums">{drainRain(d)} mm</td><td className="px-3 text-right tabular-nums">{d.historicalChokes}</td><td className="px-3 text-right tabular-nums">{d.citizenReports}</td><td className="px-3 capitalize text-muted-foreground">{d.slope}</td><td className="px-3 text-right tabular-nums">{d.cleaningTimeMin} min</td><td className="px-3"><StatusBadge status={d.status} /></td>

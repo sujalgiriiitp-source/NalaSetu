@@ -52,8 +52,8 @@ function DispatchPage() {
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span><span className="font-bold uppercase tracking-wide text-foreground">Estimated route</span> — grid clustering → greedy knapsack on score ÷ (cleaning + travel) → nearest-neighbour order. Distance uses straight-line × 1.3 at {AVG_SPEED_KMH} km/h — not exact road routing.</span>
           </div>
-          <div className="grid gap-4 2xl:grid-cols-[1fr_420px]">
-            <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
+            <div className="grid gap-4 xl:grid-cols-3">
               {plan.crews.map((c) => {
                 const crew = n.crews.find((k) => k.id === c.crewId)!;
                 const pct = Math.min(100, Math.round((c.totalMin / (crew.availableHours * 60)) * 100));
@@ -62,17 +62,17 @@ function DispatchPage() {
                     <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Home className="h-3 w-3" />Base · estimated route sequence</div>
                     <ol className="relative space-y-2 border-l border-dashed pl-4">
                       {c.drainIds.map((id, i) => { const d = byId.get(id)!; return (
-                        <li key={id} className="relative rounded-md border bg-card p-2 text-xs transition-shadow hover:shadow-raised">
+                        <li key={id} className="relative rounded-lg border bg-card p-3 text-xs transition-shadow hover:shadow-raised">
                           <span className="absolute -left-[27px] top-2 grid h-5 w-5 place-items-center rounded-full border bg-card text-[10px] font-bold tabular-nums">{i + 1}</span>
                           <div className="flex items-center justify-between gap-2"><span className="whitespace-nowrap font-mono font-semibold">{id}</span><RiskBadge band={d.riskBand} score={d.riskScore} className="whitespace-nowrap" /></div>
                           <div className="mt-0.5 flex justify-between gap-2 text-muted-foreground"><span className="truncate">{d.name}</span><span className="shrink-0 tabular-nums">{d.cleaningTimeMin} min</span></div>
                           <div className="mt-1.5 flex flex-wrap items-center gap-1">
                             {plan.dispatched ? <StatusBadge status={d.status} /> : (<>
-                              <select aria-label={`Reassign ${id}`} className="h-6 rounded border bg-card px-1 text-[11px]" value="" onChange={(e) => e.target.value && n.reassign(c.crewId, id, e.target.value)}>
+                              <select aria-label={`Reassign ${id}`} className="h-9 rounded-md border bg-card px-2 text-xs" value="" onChange={(e) => e.target.value && n.reassign(c.crewId, id, e.target.value)}>
                                 <option value="">Reassign…</option>
                                 {n.crews.filter((k) => k.id !== c.crewId).map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
                               </select>
-                              <Button size="sm" variant="ghost" className="h-6 px-1.5 text-[11px]" onClick={() => n.removeFromPlan(c.crewId, id)}><Trash2 className="h-3 w-3" /><span className="sr-only">Remove</span></Button>
+                              <Button size="sm" variant="ghost" className="h-9 w-9 px-0" aria-label={`Remove ${id} from plan`} onClick={() => n.removeFromPlan(c.crewId, id)}><Trash2 className="h-4 w-4" /></Button>
                             </>)}
                           </div>
                         </li>); })}
@@ -90,7 +90,7 @@ function DispatchPage() {
                 );
               })}
             </div>
-            <div className="h-[420px] 2xl:h-auto"><LazyMap drains={planned} onSelect={() => {}} routes={routes} /></div>
+            <div className="h-[360px] overflow-hidden rounded-lg border bg-card shadow-card sm:h-[420px] 2xl:h-auto"><LazyMap drains={planned} onSelect={() => {}} routes={routes} /></div>
           </div>
           <div className="sticky bottom-0 flex items-center justify-between gap-2 rounded-md border bg-card px-4 py-3">
             <span className="text-sm text-muted-foreground">{totalTasks} tasks across {plan.crews.filter((c) => c.drainIds.length).length} crews{plan.dispatched && " · dispatched"}</span>

@@ -60,7 +60,7 @@ function MapPage() {
   );
   const selected = drains.find((d) => d.id === sel);
   const onSelect = useCallback((id: string) => setSel(id), []);
-  const sel_ = "h-8 rounded border bg-card px-2 text-xs";
+  const sel_ = "h-10 rounded-md border bg-card px-2 text-xs";
   return (
     <AppShell title="Risk Map" subtitle="Marker colour = risk band. Click a marker for details.">
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
@@ -89,8 +89,8 @@ function MapPage() {
           </div>
         </div>
       </div>
-      <div className="grid gap-4 lg:h-[calc(100vh-270px)] lg:grid-cols-[280px_1fr_380px] lg:grid-rows-1">
-        <div className="flex min-h-0 flex-col overflow-hidden rounded-md border bg-card shadow-card">
+      <div className="grid gap-4 lg:grid-cols-2 2xl:h-[calc(100vh-270px)] 2xl:grid-cols-[280px_minmax(0,1fr)_380px] 2xl:grid-rows-1">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-card">
           <div className="space-y-3 border-b p-4">
             <div className="flex items-center justify-between">
               <div className="text-xs font-semibold uppercase tracking-[0.12em]">Filters</div>
@@ -136,7 +136,8 @@ function MapPage() {
               <li key={d.id}>
                 <button
                   onClick={() => setSel(d.id)}
-                  className={`w-full border-b px-3 py-2 text-left text-xs hover:bg-muted ${sel === d.id ? "bg-accent" : ""}`}
+                  aria-pressed={sel === d.id}
+                  className={`w-full border-b px-3 py-3 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-info ${sel === d.id ? "bg-accent" : ""}`}
                 >
                   <div className="flex items-center justify-between gap-1">
                     <span className="font-mono text-muted-foreground">{d.id}</span>
@@ -151,7 +152,7 @@ function MapPage() {
             ))}
           </ul>
         </div>
-        <div className="relative h-[420px] min-h-0 overflow-hidden rounded-md border bg-card shadow-card lg:h-full">
+        <div className="relative h-[420px] min-h-0 overflow-hidden rounded-lg border bg-card shadow-card 2xl:h-full">
           <div className="pointer-events-none absolute left-3 top-3 z-[500] flex gap-2 rounded-md border bg-card/95 px-2.5 py-2 text-[10px] font-semibold shadow-card">
             <span className="text-risk-high">HIGH</span>
             <span className="text-demo-foreground">MEDIUM</span>
@@ -159,7 +160,7 @@ function MapPage() {
           </div>
           <LazyMap drains={list} selected={sel} onSelect={onSelect} />
         </div>
-        <div className="overflow-y-auto rounded-md border bg-card p-5 shadow-card">
+        <div className="overflow-y-auto rounded-lg border bg-card p-4 shadow-card sm:p-5 lg:col-span-2 2xl:col-span-1">
           {selected ? (
             <>
               <h2 className="mb-3 font-semibold">

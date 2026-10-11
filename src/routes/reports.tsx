@@ -20,7 +20,7 @@ function ReportsPage() {
   const n = useNala();
   return (
     <AppShell title="Citizen Reports" subtitle="Each report raises the citizen factor (C) in that drain's risk score.">
-      <div className="grid gap-4 lg:grid-cols-[400px_1fr]">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(360px,400px)_minmax(0,1fr)]">
         <Panel title="Report drain problem" subtitle="Simple 4-step form for residents">
           <CitizenReportForm />
         </Panel>
