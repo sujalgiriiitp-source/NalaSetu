@@ -91,6 +91,26 @@ export interface AwsDrainList {
 
 export type VerificationMode = "lovable-ai" | "bedrock" | "demo" | "fallback";
 
+export type IntegrationStatus = "CONNECTED" | "NOT_VERIFIED" | "ERROR";
+
+export interface IntegrationCheck {
+  status: IntegrationStatus;
+  message: string;
+}
+
+export interface IntegrationHealthResponse {
+  checkedAt: string;
+  services: {
+    apiGateway: IntegrationCheck;
+    lambda: IntegrationCheck;
+    dynamodb: IntegrationCheck;
+    s3: IntegrationCheck;
+    bedrock: IntegrationCheck;
+    eventBridge: IntegrationCheck;
+    cloudWatch: IntegrationCheck;
+  };
+}
+
 export interface AwsTask {
   id: string;
   drainId: string;
@@ -159,6 +179,11 @@ export interface AwsVerification {
 /** GET /api/drains — list all drain base records */
 export async function listDrains(): Promise<Result<AwsDrainList>> {
   return apiFetch<AwsDrainList>("/api/drains");
+}
+
+/** GET /api/health/integrations — backend-side, read-only AWS checks */
+export async function getIntegrationHealth(): Promise<Result<IntegrationHealthResponse>> {
+  return apiFetch<IntegrationHealthResponse>("/api/health/integrations", undefined, 15000);
 }
 
 /** GET /api/drains/:id — single drain detail */

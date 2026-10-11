@@ -2,24 +2,25 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   RefreshCw,
   RotateCcw,
-  Wifi,
-  WifiOff,
   Loader2,
   Database,
-  CheckCircle2,
-  AlertCircle,
   Cloud,
   Boxes,
   BrainCircuit,
   BellRing,
   Activity,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AppShell, Panel } from "@/components/nala/AppShell";
 import { SourceBadge, Tag } from "@/components/nala/badges";
 import { useNala } from "@/lib/nalasetu/store";
+import {
+  getIntegrationHealth,
+  type IntegrationHealthResponse,
+  type IntegrationStatus,
+} from "@/lib/nalasetu/aws-api";
 import { WEIGHTS } from "@/lib/nalasetu/risk";
 import { seedDemoDrains } from "@/lib/nalasetu/seed-drains.server";
 
@@ -43,6 +44,25 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const n = useNala();
   const [seeding, setSeeding] = useState(false);
+  const [integrationHealth, setIntegrationHealth] = useState<IntegrationHealthResponse | null>(null);
+  const [healthCheckError, setHealthCheckError] = useState<string | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
+  const refreshHealth = useCallback(async () => {
+    setCheckingHealth(true);
+    setHealthCheckError(null);
+    try {
+      const [result] = await Promise.all([getIntegrationHealth(), n.refreshAwsConnection()]);
+      if (result.ok) setIntegrationHealth(result.data);
+      else setHealthCheckError(result.error);
+    } catch (error) {
+      setHealthCheckError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCheckingHealth(false);
+    }
+  }, [n.refreshAwsConnection]);
+  useEffect(() => {
+    void refreshHealth();
+  }, [refreshHealth]);
   const Opt = ({
     on,
     onClick,
@@ -70,32 +90,45 @@ function SettingsPage() {
     }
   };
 
-  const awsStatusConfig = {
-    idle: { icon: Wifi, label: "Not verified", tone: "text-muted-foreground" },
-    checking: { icon: Loader2, label: "Checking…", tone: "text-info animate-spin" },
-    connected: { icon: CheckCircle2, label: "API reachable", tone: "text-risk-low" },
-    error: { icon: AlertCircle, label: "API unreachable", tone: "text-risk-high" },
-    unconfigured: { icon: WifiOff, label: "Configuration required", tone: "text-muted-foreground" },
-  } as const;
-  const awsCfg = awsStatusConfig[n.awsStatus];
-  const AwsIcon = awsCfg.icon;
-  const apiStatus =
-    n.awsStatus === "connected"
-      ? "Reachable"
-      : n.awsStatus === "checking"
-        ? "Checking…"
-        : n.awsStatus === "unconfigured"
-          ? "Configuration required"
-          : n.awsStatus === "error"
-            ? "Unreachable"
-            : "Not verified";
-  const dataStatus =
-    n.awsStatus !== "connected"
-      ? apiStatus
-      : n.awsDrainSource === "dynamodb"
-        ? "DynamoDB records available"
-        : "DynamoDB query succeeded · demo records";
-  const bedrockStatus = n.bedrockVerifiedAt ? "Verified" : "Not Verified";
+  const bedrockStatus = n.bedrockVerification.status;
+  const statusText = (status: IntegrationStatus | "CHECKING") =>
+    status === "CHECKING" ? "CHECKING" : status.replaceAll("_", " ");
+  const serviceCheck = (
+    service: keyof IntegrationHealthResponse["services"],
+  ): { status: IntegrationStatus | "CHECKING"; message: string } => {
+    if (service === "bedrock") {
+      return {
+        status: n.bedrockVerification.status,
+        message: n.bedrockVerification.message,
+      };
+    }
+    if (checkingHealth) return { status: "CHECKING", message: "Check is running." };
+    if (n.awsStatus === "connected" && service === "apiGateway") {
+      return {
+        status: "CONNECTED",
+        message: "GET /api/drains succeeded through the configured API Gateway endpoint.",
+      };
+    }
+    if (n.awsStatus === "connected" && service === "lambda") {
+      return {
+        status: "CONNECTED",
+        message: "The nalasetu-api Lambda returned the drain-list response.",
+      };
+    }
+    if (n.awsStatus === "connected" && service === "dynamodb") {
+      return {
+        status: "CONNECTED",
+        message: n.awsDrainSource === "dynamodb"
+          ? "Drain records were retrieved from the configured DynamoDB table."
+          : "DynamoDB query succeeded; no stored drains were returned, so labelled demo data is shown.",
+      };
+    }
+    if (healthCheckError) return { status: "NOT_VERIFIED", message: healthCheckError };
+    return integrationHealth?.services[service] ?? {
+      status: "NOT_VERIFIED",
+      message: "No successful backend health check has been recorded.",
+    };
+  };
 
   return (
     <AppShell title="Settings">
@@ -138,77 +171,95 @@ function SettingsPage() {
             <Button size="sm" variant="outline" disabled>
               Amazon Bedrock — Nova Lite
             </Button>
-            <Tag tone={n.bedrockVerifiedAt ? "ok" : "muted"}>{bedrockStatus}</Tag>
+            <Tag
+              tone={bedrockStatus === "CONNECTED" ? "ok" : "muted"}
+            >
+              {statusText(bedrockStatus)}
+            </Tag>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            {n.bedrockVerifiedAt
-              ? `A Test Lab response returned mode=bedrock at ${new Date(n.bedrockVerifiedAt).toLocaleString()}. Demo and fallback results do not count as Bedrock verification.`
-              : "API reachability does not verify Bedrock. Run a Test Lab scenario; only a response with mode=bedrock verifies it. Demo and fallback results do not count."}{" "}
+            {n.bedrockVerification.message}
+            {n.bedrockVerification.checkedAt
+              ? ` Checked ${new Date(n.bedrockVerification.checkedAt).toLocaleString()}.`
+              : ""}{" "}
             Officers make the final call.
           </p>
         </Panel>
         <Panel
           title="AWS infrastructure health"
-          subtitle="Client-visible integration checks · backend behavior unchanged"
+          subtitle="Read-only backend checks; unavailable checks remain unverified"
           right={
-            <Tag tone={n.awsStatus === "connected" ? "ok" : "muted"}>{awsCfg.label}</Tag>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void refreshHealth()}
+              disabled={checkingHealth}
+            >
+              {checkingHealth ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {checkingHealth ? "Checking…" : "Check again"}
+            </Button>
           }
         >
           <div className="flex items-center gap-2 mb-3">
-            <AwsIcon className={`h-4 w-4 ${awsCfg.tone}`} />
-            <span className="text-sm font-medium">{awsCfg.label}</span>
-            {n.awsMode && (
-              <Tag tone={n.awsStatus === "connected" ? "ok" : "demo"}>
-                {n.awsMode ? "AWS API Gateway" : "Demo fallback"}
-              </Tag>
+            {checkingHealth ? (
+              <Loader2 className="h-4 w-4 animate-spin text-info" />
+            ) : (
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            )}
+            <span className="text-sm font-medium">
+              {checkingHealth ? "CHECKING" : integrationHealth ? "Checks complete" : "NOT VERIFIED"}
+            </span>
+            {integrationHealth && (
+              <span className="text-xs text-muted-foreground">
+                Checked {new Date(integrationHealth.checkedAt).toLocaleString()}
+              </span>
             )}
           </div>
           <ul className="mb-4 grid gap-2 sm:grid-cols-2">
             {(
               [
-                ["API Gateway", "Public API edge", Cloud],
-                ["Lambda", "nalasetu-api", Activity],
-                ["DynamoDB", "NalaSetu table", Boxes],
-                ["S3", "Proof photo storage", Database],
-                ["Amazon Bedrock", "Nova Lite verification", BrainCircuit],
-                ["EventBridge", "Operational events", BellRing],
-                ["CloudWatch", "Logs & alarms", Activity],
+                ["API Gateway", "Public API edge", Cloud, "apiGateway"],
+                ["Lambda", "nalasetu-api", Activity, "lambda"],
+                ["DynamoDB", "NalaSetu table", Boxes, "dynamodb"],
+                ["S3", "Proof photo storage", Database, "s3"],
+                ["Amazon Bedrock", "Nova Lite verification", BrainCircuit, "bedrock"],
+                ["EventBridge", "NalaSetu-weather-Refresh schedule", BellRing, "eventBridge"],
+                ["CloudWatch", "nalasetu-api log group", Activity, "cloudWatch"],
               ] as const
-            ).map(([s, detail, Icon]) => (
-              <li
-                key={s}
-                className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <Icon className="h-3.5 w-3.5 shrink-0 text-info" />
-                  <span className="min-w-0">
-                    <span className="block text-xs font-semibold">{s}</span>
-                    <span className="block truncate text-[10px] text-muted-foreground">
-                      {detail}
+            ).map(([s, detail, Icon, service]) => {
+              const check = serviceCheck(service);
+              const status = checkingHealth && service !== "bedrock" ? "CHECKING" : check.status;
+              return (
+                <li
+                  key={s}
+                  className="flex items-start justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2"
+                >
+                  <span className="flex min-w-0 items-start gap-2">
+                    <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-info" />
+                    <span className="min-w-0">
+                      <span className="block text-xs font-semibold">{s}</span>
+                      <span className="block truncate text-[10px] text-muted-foreground">
+                        {detail}
+                      </span>
+                      <span className="mt-1 block text-[10px] text-muted-foreground">
+                        {checkingHealth && service !== "bedrock"
+                          ? "Running backend check."
+                          : check.message}
+                      </span>
                     </span>
                   </span>
-                </span>
-                <Tag
-                  tone={
-                    s === "API Gateway" || s === "Lambda"
-                      ? n.awsStatus === "connected" ? "ok" : "muted"
-                      : s === "DynamoDB" && n.awsStatus === "connected" && n.awsDrainSource === "dynamodb"
-                        ? "ok"
-                        : s === "Amazon Bedrock" && n.bedrockVerifiedAt
-                          ? "ok"
-                        : "muted"
-                  }
-                >
-                  {s === "API Gateway" || s === "Lambda"
-                    ? apiStatus
-                    : s === "DynamoDB"
-                      ? dataStatus
-                      : s === "Amazon Bedrock"
-                        ? bedrockStatus
-                      : "Not verified"}
-                </Tag>
-              </li>
-            ))}
+                  <Tag
+                    tone={status === "CONNECTED" ? "ok" : "muted"}
+                  >
+                    {statusText(status)}
+                  </Tag>
+                </li>
+              );
+            })}
           </ul>
           {n.awsMode && (
             <div className="flex flex-wrap gap-2">
