@@ -71,14 +71,31 @@ function SettingsPage() {
   };
 
   const awsStatusConfig = {
-    idle: { icon: Wifi, label: "Idle", tone: "text-muted-foreground" },
+    idle: { icon: Wifi, label: "Not verified", tone: "text-muted-foreground" },
     checking: { icon: Loader2, label: "Checking…", tone: "text-info animate-spin" },
-    connected: { icon: CheckCircle2, label: "Connected", tone: "text-risk-low" },
-    error: { icon: AlertCircle, label: "Unreachable", tone: "text-risk-high" },
-    unconfigured: { icon: WifiOff, label: "Not configured", tone: "text-muted-foreground" },
+    connected: { icon: CheckCircle2, label: "API reachable", tone: "text-risk-low" },
+    error: { icon: AlertCircle, label: "API unreachable", tone: "text-risk-high" },
+    unconfigured: { icon: WifiOff, label: "Configuration required", tone: "text-muted-foreground" },
   } as const;
   const awsCfg = awsStatusConfig[n.awsStatus];
   const AwsIcon = awsCfg.icon;
+  const apiStatus =
+    n.awsStatus === "connected"
+      ? "Reachable"
+      : n.awsStatus === "checking"
+        ? "Checking…"
+        : n.awsStatus === "unconfigured"
+          ? "Configuration required"
+          : n.awsStatus === "error"
+            ? "Unreachable"
+            : "Not verified";
+  const dataStatus =
+    n.awsStatus !== "connected"
+      ? apiStatus
+      : n.awsDrainSource === "dynamodb"
+        ? "DynamoDB records available"
+        : "DynamoDB query succeeded · demo records";
+  const bedrockStatus = n.bedrockVerifiedAt ? "Verified" : "Not Verified";
 
   return (
     <AppShell title="Settings">
@@ -118,37 +135,23 @@ function SettingsPage() {
         </Panel>
         <Panel title="AI provider">
           <div className="flex gap-2 items-center">
-            {n.awsStatus === "connected" ? (
-              <>
-                <Button size="sm" variant="default">
-                  Amazon Bedrock — Nova Lite
-                </Button>
-                <Tag tone="ok">Connected</Tag>
-              </>
-            ) : (
-              <>
-                <Opt on onClick={() => {}}>
-                  Lovable AI
-                </Opt>
-                <Button size="sm" variant="outline" disabled>
-                  Bedrock (not configured)
-                </Button>
-              </>
-            )}
+            <Button size="sm" variant="outline" disabled>
+              Amazon Bedrock — Nova Lite
+            </Button>
+            <Tag tone={n.bedrockVerifiedAt ? "ok" : "muted"}>{bedrockStatus}</Tag>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            {n.awsStatus === "connected"
-              ? "Proof photos are sent to AWS Lambda → Amazon Bedrock Nova Lite for multimodal AI verification. Confidence < 70 or any red flag → Needs Review. Officers always make the final call."
-              : "Photos are assessed by an AI model for same location and reduced obstruction. Confidence < 70, any red flag, or AI unavailable → Needs Review. Officers always make the final call."}
+            {n.bedrockVerifiedAt
+              ? `A Test Lab response returned mode=bedrock at ${new Date(n.bedrockVerifiedAt).toLocaleString()}. Demo and fallback results do not count as Bedrock verification.`
+              : "API reachability does not verify Bedrock. Run a Test Lab scenario; only a response with mode=bedrock verifies it. Demo and fallback results do not count."}{" "}
+            Officers make the final call.
           </p>
         </Panel>
         <Panel
           title="AWS infrastructure health"
           subtitle="Client-visible integration checks · backend behavior unchanged"
           right={
-            <Tag tone={n.awsStatus === "connected" ? "ok" : "demo"}>
-              {n.awsStatus === "connected" ? "Operational" : "Demo fallback"}
-            </Tag>
+            <Tag tone={n.awsStatus === "connected" ? "ok" : "muted"}>{awsCfg.label}</Tag>
           }
         >
           <div className="flex items-center gap-2 mb-3">
@@ -185,15 +188,25 @@ function SettingsPage() {
                     </span>
                   </span>
                 </span>
-                {n.awsStatus === "connected" ? (
-                  <Tag tone="ok">Connected</Tag>
-                ) : n.awsStatus === "unconfigured" ? (
-                  <Tag tone="demo">Demo fallback</Tag>
-                ) : n.awsStatus === "checking" ? (
-                  <Tag>Checking…</Tag>
-                ) : (
-                  <Tag tone="demo">Demo fallback</Tag>
-                )}
+                <Tag
+                  tone={
+                    s === "API Gateway" || s === "Lambda"
+                      ? n.awsStatus === "connected" ? "ok" : "muted"
+                      : s === "DynamoDB" && n.awsStatus === "connected" && n.awsDrainSource === "dynamodb"
+                        ? "ok"
+                        : s === "Amazon Bedrock" && n.bedrockVerifiedAt
+                          ? "ok"
+                        : "muted"
+                  }
+                >
+                  {s === "API Gateway" || s === "Lambda"
+                    ? apiStatus
+                    : s === "DynamoDB"
+                      ? dataStatus
+                      : s === "Amazon Bedrock"
+                        ? bedrockStatus
+                      : "Not verified"}
+                </Tag>
               </li>
             ))}
           </ul>
@@ -239,8 +252,10 @@ function SettingsPage() {
             Reset demo data
           </Button>
           <p className="mt-2 text-xs text-muted-foreground">
-            Clears plans, tasks, photos, reports and audit log stored in this browser. Map tiles ©
-            OpenStreetMap contributors.
+            Demo drains, locations, crew availability, and citizen-report counts are synthetic
+            prototype data, not real municipal records. Live Open-Meteo weather is labelled
+            separately by its source. Reset clears plans, tasks, photos, reports, and the audit log
+            stored in this browser. Map tiles © OpenStreetMap contributors.
           </p>
         </Panel>
       </div>

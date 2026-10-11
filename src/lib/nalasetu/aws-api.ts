@@ -83,6 +83,14 @@ export interface AwsDrain {
   ward: string;
 }
 
+export interface AwsDrainList {
+  drains: AwsDrain[];
+  total: number;
+  source: "dynamodb" | "demo";
+}
+
+export type VerificationMode = "lovable-ai" | "bedrock" | "demo" | "fallback";
+
 export interface AwsTask {
   id: string;
   drainId: string;
@@ -96,7 +104,7 @@ export interface AwsTask {
     verdict: "PASS" | "REVIEW";
     confidence: number;
     reason: string;
-    mode: "lovable-ai" | "bedrock" | "demo" | "fallback";
+    mode: VerificationMode;
   };
   officerDecision?: "APPROVED" | "REJECTED";
   officerAt?: string;
@@ -143,14 +151,14 @@ export interface AwsVerification {
   sameLocation?: boolean;
   obstructionBefore?: boolean;
   obstructionAfter?: boolean;
-  mode: "lovable-ai" | "bedrock" | "demo" | "fallback";
+  mode: VerificationMode;
 }
 
 // ─── API endpoints ────────────────────────────────────────────────────────────
 
 /** GET /api/drains — list all drain base records */
-export async function listDrains(): Promise<Result<AwsDrain[]>> {
-  return apiFetch<AwsDrain[]>("/api/drains");
+export async function listDrains(): Promise<Result<AwsDrainList>> {
+  return apiFetch<AwsDrainList>("/api/drains");
 }
 
 /** GET /api/drains/:id — single drain detail */
