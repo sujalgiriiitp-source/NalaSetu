@@ -33,17 +33,24 @@ function LabPage() {
 
   const runOne = async (f: Fixture) => {
     setResults((r) => ({ ...r, [f.id]: { state: "running" } }));
+    nala.beginBedrockVerification();
     const t0 = performance.now();
     try {
       const [b, a] = await Promise.all([urlToJpegDataUrl(f.before), urlToJpegDataUrl(f.after)]);
       const res = await verify({ data: { before: b, after: f.after === f.before ? b : a, drainId: "TEST", drainName: f.title } });
-      if (!res.ok) { setResults((r) => ({ ...r, [f.id]: { state: "error", error: res.error } })); return false; }
+      if (!res.ok) {
+        nala.recordVerificationUnavailable(res.error);
+        setResults((r) => ({ ...r, [f.id]: { state: "error", error: res.error } }));
+        return false;
+      }
       nala.recordVerificationMode(res.mode);
       const actual: Actual = { verdict: res.verdict, confidence: res.confidence, sameLocation: res.sameLocation, obstructionAfter: res.obstructionAfter };
       setResults((r) => ({ ...r, [f.id]: { state: "done", actual, mode: res.mode, reason: res.reason, fails: checkExpectation(f.expect, actual), ms: Math.round(performance.now() - t0) } }));
       return true;
     } catch (e) {
-      setResults((r) => ({ ...r, [f.id]: { state: "error", error: (e as Error).message } }));
+      const error = e instanceof Error ? e.message : String(e);
+      nala.recordVerificationUnavailable(error);
+      setResults((r) => ({ ...r, [f.id]: { state: "error", error } }));
       return false;
     }
   };

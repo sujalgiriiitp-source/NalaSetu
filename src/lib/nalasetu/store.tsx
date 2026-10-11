@@ -17,11 +17,18 @@ import {
   reviewProofAws,
   patchSettings,
   type AwsDrain,
+  type IntegrationStatus,
+  type VerificationMode,
 } from "./aws-api";
 
 export type WeatherMode = "demo" | "live";
 export type AwsConnStatus = "idle" | "checking" | "connected" | "error" | "unconfigured";
 export interface WeatherInfo { forecastMm72h: number; source: "live" | "cached" | "demo"; fetchedAt: string; hourly?: { time: string; mm: number }[] }
+export interface BedrockVerificationStatus {
+  status: IntegrationStatus | "CHECKING";
+  checkedAt: string | null;
+  message: string;
+}
 
 interface Persisted {
   scenario: Scenario;
@@ -45,7 +52,8 @@ interface Ctx {
   awsMode: boolean;
   awsStatus: AwsConnStatus;
   awsDrainSource: "dynamodb" | "demo" | null;
-  bedrockVerifiedAt: string | null;
+  refreshAwsConnection: () => Promise<void>;
+  bedrockVerification: BedrockVerificationStatus;
   scenario: Scenario;
   weatherMode: WeatherMode;
   weather: WeatherInfo;
@@ -70,7 +78,9 @@ interface Ctx {
   submitProof: (taskId: string) => Promise<void>;
   review: (taskId: string, decision: "APPROVED" | "REJECTED") => void;
   addReport: (r: Omit<CitizenReport, "id" | "createdAt">) => string;
-  recordVerificationMode: (mode: "lovable-ai" | "bedrock" | "demo" | "fallback") => void;
+  beginBedrockVerification: () => void;
+  recordVerificationMode: (mode: VerificationMode) => void;
+  recordVerificationUnavailable: (message: string) => void;
   resetDemo: () => void;
 }
 
@@ -103,7 +113,11 @@ export function NalaProvider({ children }: { children: ReactNode }) {
     AWS_CONFIGURED ? "idle" : "unconfigured",
   );
   const [awsDrainSource, setAwsDrainSource] = useState<"dynamodb" | "demo" | null>(null);
-  const [bedrockVerifiedAt, setBedrockVerifiedAt] = useState<string | null>(null);
+  const [bedrockVerification, setBedrockVerification] = useState<BedrockVerificationStatus>({
+    status: "NOT_VERIFIED",
+    checkedAt: null,
+    message: "Run a Test Lab scenario to verify the actual backend mode.",
+  });
   const sRef = useRef(s); sRef.current = s;
 
   useEffect(() => {
@@ -115,11 +129,16 @@ export function NalaProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { toast.error("Local storage full — some demo photos may not persist."); }
   }, [s, ready]);
 
-  // ── AWS drain sync: on mount, try to load drains from DynamoDB ──
-  useEffect(() => {
-    if (!ready || !AWS_CONFIGURED) return;
+  const refreshAwsConnection = useCallback(async () => {
+    if (!ready) return;
+    if (!AWS_CONFIGURED) {
+      setAwsDrainSource(null);
+      setAwsStatus("unconfigured");
+      return;
+    }
     setAwsStatus("checking");
-    void listDrains().then((res) => {
+    try {
+      const res = await listDrains();
       if (res.ok && Array.isArray(res.data.drains) && (res.data.source === "dynamodb" || res.data.source === "demo")) {
         if (res.data.drains.length > 0) {
           const bases = res.data.drains.map(awsDrainToBase);
@@ -128,11 +147,19 @@ export function NalaProvider({ children }: { children: ReactNode }) {
         setAwsDrainSource(res.data.source);
         setAwsStatus("connected");
       } else {
+        setAwsDrainSource(null);
         setAwsStatus("error");
       }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    } catch {
+      setAwsDrainSource(null);
+      setAwsStatus("error");
+    }
   }, [ready]);
+
+  // ── AWS drain sync: on mount, try to load drains from DynamoDB ──
+  useEffect(() => {
+    void refreshAwsConnection();
+  }, [refreshAwsConnection]);
 
   const refreshWeather = useCallback(async () => {
     try {
@@ -324,15 +351,50 @@ export function NalaProvider({ children }: { children: ReactNode }) {
     if (AWS_CONFIGURED) void patchSettings({ weatherMode }).then((res) => { if (!res.ok) console.warn("[AWS] patchSettings failed:", res.error); });
   };
 
-  const recordVerificationMode = (mode: "lovable-ai" | "bedrock" | "demo" | "fallback") => {
-    if (mode === "bedrock") setBedrockVerifiedAt(new Date().toISOString());
+  const beginBedrockVerification = () => {
+    setBedrockVerification({
+      status: "CHECKING",
+      checkedAt: null,
+      message: "Test Lab verification request is running.",
+    });
+  };
+
+  const recordVerificationMode = (mode: VerificationMode) => {
+    const checkedAt = new Date().toISOString();
+    if (mode === "bedrock") {
+      setBedrockVerification({
+        status: "CONNECTED",
+        checkedAt,
+        message: "Test Lab received mode=bedrock after a successful backend Bedrock invocation.",
+      });
+    } else if (mode === "fallback") {
+      setBedrockVerification({
+        status: "ERROR",
+        checkedAt,
+        message: "Verification used the backend fallback; Bedrock did not complete successfully.",
+      });
+    } else {
+      setBedrockVerification({
+        status: "NOT_VERIFIED",
+        checkedAt,
+        message: `Test Lab returned mode=${mode}; this does not verify Bedrock.`,
+      });
+    }
+  };
+
+  const recordVerificationUnavailable = (message: string) => {
+    setBedrockVerification({
+      status: "NOT_VERIFIED",
+      checkedAt: new Date().toISOString(),
+      message,
+    });
   };
 
   const value: Ctx = {
-    ready, awsMode: AWS_CONFIGURED, awsStatus, awsDrainSource, bedrockVerifiedAt, scenario: s.scenario, weatherMode: s.weatherMode, weather, forecastMm, drains, crews: DEMO_CREWS, tasks: s.tasks, plan: s.plan, audit: s.audit, reports: s.reports, drainRain,
+    ready, awsMode: AWS_CONFIGURED, awsStatus, awsDrainSource, refreshAwsConnection, bedrockVerification, scenario: s.scenario, weatherMode: s.weatherMode, weather, forecastMm, drains, crews: DEMO_CREWS, tasks: s.tasks, plan: s.plan, audit: s.audit, reports: s.reports, drainRain,
     setScenario: setScenarioWithAwsSync,
     setWeatherMode: setWeatherModeWithAwsSync,
-    refreshWeather, generatePlan, removeFromPlan, reassign, addToPlan, dispatchAll, transition, setPhoto, submitProof, review, addReport, recordVerificationMode,
+    refreshWeather, generatePlan, removeFromPlan, reassign, addToPlan, dispatchAll, transition, setPhoto, submitProof, review, addReport, beginBedrockVerification, recordVerificationMode, recordVerificationUnavailable,
     resetDemo: () => { setS(fresh()); setLive(null); toast.success("Demo data reset."); },
   };
   return <C.Provider value={value}>{children}</C.Provider>;

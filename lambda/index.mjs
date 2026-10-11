@@ -26,8 +26,14 @@ import {
   ScanCommand,
   DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { randomUUID } from "node:crypto";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
+import { SchedulerClient, GetScheduleCommand } from "@aws-sdk/client-scheduler";
+import {
+  CloudWatchLogsClient,
+  FilterLogEventsCommand,
+} from "@aws-sdk/client-cloudwatch-logs";
 
 // ─── DynamoDB client ──────────────────────────────────────────────────────────
 const TABLE = process.env.DYNAMODB_TABLE ?? "NalaSetu";
@@ -40,6 +46,13 @@ const db = DynamoDBDocumentClient.from(raw, {
 // ─── S3 & Bedrock clients ─────────────────────────────────────────────────────
 const S3_BUCKET = process.env.S3_BUCKET;
 const s3Client = new S3Client({ region: REGION });
+const schedulerClient = new SchedulerClient({ region: REGION });
+const logsClient = new CloudWatchLogsClient({ region: REGION });
+const WEATHER_REFRESH_SCHEDULE =
+  process.env.WEATHER_REFRESH_SCHEDULE_NAME ?? "NalaSetu-weather-Refresh";
+const WEATHER_REFRESH_SCHEDULE_GROUP =
+  process.env.WEATHER_REFRESH_SCHEDULE_GROUP ?? "default";
+const API_LOG_GROUP = "/aws/lambda/nalasetu-api";
 
 const BEDROCK_MODEL_ID = process.env.BEDROCK_MODEL_ID;
 const bedrockClient = new BedrockRuntimeClient({ region: REGION });
@@ -314,6 +327,159 @@ async function getAllDrains() {
   return res.Items ?? [];
 }
 
+function permissionDenied(error) {
+  return error?.name === "AccessDenied"
+    || error?.name === "AccessDeniedException"
+    || error?.name === "Forbidden"
+    || error?.$metadata?.httpStatusCode === 403;
+}
+
+function checkFailure(error, permission, resource) {
+  if (permissionDenied(error)) {
+    return {
+      status: "NOT_VERIFIED",
+      message: `Access denied. The Lambda role needs ${permission} for ${resource}.`,
+    };
+  }
+  if (error?.name === "ResourceNotFoundException" || error?.name === "ResourceNotFound") {
+    return { status: "ERROR", message: `${resource} was not found in ${REGION}.` };
+  }
+  console.error(`[Integration health] ${resource} check failed:`, error);
+  return {
+    status: "ERROR",
+    message: `${resource} check failed (${error?.name ?? "unknown AWS error"}).`,
+  };
+}
+
+async function getIntegrationHealth() {
+  const [dynamodb, s3, eventBridge, cloudWatch] = await Promise.all([
+    (async () => {
+      try {
+        const drains = await getAllDrains();
+        return {
+          status: "CONNECTED",
+          message: `Query succeeded for ${TABLE}; ${drains.length} drain record(s) returned.`,
+        };
+      } catch (error) {
+        return checkFailure(error, "dynamodb:Query", `DynamoDB table ${TABLE}`);
+      }
+    })(),
+    (async () => {
+      if (!S3_BUCKET) {
+        return { status: "NOT_VERIFIED", message: "S3_BUCKET is not configured for Lambda." };
+      }
+      const key = `health-check/${randomUUID()}.txt`;
+      const body = Buffer.from(`nalasetu-health-check:${randomUUID()}`);
+      const objectArn = `arn:aws:s3:::${S3_BUCKET}/${key}`;
+      let created = false;
+      let versionId;
+      let check;
+      let permission = "s3:PutObject";
+      try {
+        const putResult = await s3Client.send(new PutObjectCommand({
+          Bucket: S3_BUCKET,
+          Key: key,
+          Body: body,
+          ContentType: "text/plain",
+          IfNoneMatch: "*",
+        }));
+        created = true;
+        versionId = putResult.VersionId;
+
+        permission = "s3:GetObject";
+        const getResult = await s3Client.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }));
+        const retrieved = Buffer.from(await getResult.Body.transformToByteArray());
+        check = retrieved.equals(body)
+          ? { status: "CONNECTED", message: "Temporary object upload and read-back matched." }
+          : { status: "ERROR", message: "Temporary object read-back did not match the uploaded contents." };
+      } catch (error) {
+        check = checkFailure(error, permission, `temporary object ${objectArn}`);
+      }
+
+      if (created) {
+        permission = versionId ? "s3:DeleteObjectVersion" : "s3:DeleteObject";
+        try {
+          await s3Client.send(new DeleteObjectCommand({
+            Bucket: S3_BUCKET,
+            Key: key,
+            ...(versionId ? { VersionId: versionId } : {}),
+          }));
+        } catch (error) {
+          const cleanup = checkFailure(error, permission, `temporary object ${objectArn}`);
+          return {
+            status: cleanup.status === "NOT_VERIFIED" ? "NOT_VERIFIED" : "ERROR",
+            message: `${check?.message ?? "S3 verification did not complete."} ${cleanup.message} Cleanup failed; the temporary object may remain at s3://${S3_BUCKET}/${key}.`,
+          };
+        }
+      }
+
+      if (check.status === "CONNECTED") {
+        return { ...check, message: "Temporary object upload, read-back, content comparison, and cleanup succeeded." };
+      }
+      return check;
+    })(),
+    (async () => {
+      try {
+        const schedule = await schedulerClient.send(new GetScheduleCommand({
+          Name: WEATHER_REFRESH_SCHEDULE,
+          GroupName: WEATHER_REFRESH_SCHEDULE_GROUP,
+        }));
+        if (schedule.State !== "ENABLED") {
+          return {
+            status: "ERROR",
+            message: `Schedule ${WEATHER_REFRESH_SCHEDULE} exists but is ${schedule.State ?? "not enabled"}.`,
+          };
+        }
+        return {
+          status: "CONNECTED",
+          message: `Schedule ${WEATHER_REFRESH_SCHEDULE} exists and is enabled.`,
+        };
+      } catch (error) {
+        return checkFailure(
+          error,
+          "scheduler:GetSchedule",
+          `schedule ${WEATHER_REFRESH_SCHEDULE} in group ${WEATHER_REFRESH_SCHEDULE_GROUP}`,
+        );
+      }
+    })(),
+    (async () => {
+      try {
+        const result = await logsClient.send(new FilterLogEventsCommand({
+          logGroupName: API_LOG_GROUP,
+          startTime: Date.now() - 24 * 60 * 60 * 1000,
+          limit: 1,
+        }));
+        const latest = result.events?.[0];
+        if (!latest?.timestamp) {
+          return {
+            status: "ERROR",
+            message: `No log events were found in ${API_LOG_GROUP} in the last 24 hours.`,
+          };
+        }
+        return {
+          status: "CONNECTED",
+          message: `A log event was readable; its timestamp is ${new Date(latest.timestamp).toISOString()}.`,
+        };
+      } catch (error) {
+        return checkFailure(error, "logs:FilterLogEvents", `CloudWatch log group ${API_LOG_GROUP}`);
+      }
+    })(),
+  ]);
+
+  return {
+    apiGateway: { status: "CONNECTED", message: "Integration health endpoint responded successfully." },
+    lambda: { status: "CONNECTED", message: "nalasetu-api Lambda handled the health request." },
+    dynamodb,
+    s3,
+    bedrock: {
+      status: "NOT_VERIFIED",
+      message: "Run Test Lab and confirm the returned verification mode is bedrock.",
+    },
+    eventBridge,
+    cloudWatch,
+  };
+}
+
 async function getSettings() {
   const res = await db.send(new GetCommand({ TableName: TABLE, Key: { pk: "SETTINGS", sk: "DEFAULT" } }));
   return res.Item ?? { pk:"SETTINGS", sk:"DEFAULT", scenario:"heavy", weatherMode:"demo" };
@@ -396,6 +562,12 @@ export async function handler(event) {
   if (method === "OPTIONS") return options();
 
   try {
+    // ── GET /api/health/integrations — read-only AWS integration checks ────────
+    if (method === "GET" && pathParts[1] === "health" && pathParts[2] === "integrations") {
+      const services = await getIntegrationHealth();
+      return ok({ checkedAt: new Date().toISOString(), services });
+    }
+
     // ── GET /api/drains ───────────────────────────────────────────────────────
     if (method === "GET" && pathParts[1] === "drains" && !pathParts[2]) {
       const allDbDrains = await getAllDrains();
