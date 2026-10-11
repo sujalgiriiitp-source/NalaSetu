@@ -11,7 +11,6 @@ import {
   MessageSquareWarning,
   FlaskConical,
   Droplets,
-  Info,
   CloudRain,
   Bell,
   UserRound,
@@ -128,12 +127,10 @@ export function UserMenu() {
 
 export function DemoBanner() {
   return (
-    <div
-      role="note"
-      className="flex items-center gap-2 border-b border-risk-medium/30 bg-demo px-4 py-1 text-[11px] font-medium text-demo-foreground"
-    >
-      <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />
-      Demo Dataset — synthetic prototype data, not real municipal data.
+    <div className="flex justify-end px-4 pt-3">
+      <span className="inline-flex items-center rounded border bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+        Prototype
+      </span>
     </div>
   );
 }
@@ -150,8 +147,8 @@ function HeaderStatus() {
         <CloudRain className="h-3.5 w-3.5 text-info" aria-hidden />
         {n.forecastMm} mm · 72h
       </span>
-      <span className="rounded-md border border-risk-medium/40 bg-demo px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-demo-foreground">
-        Demo
+      <span className="rounded border bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+        Prototype
       </span>
       <span className="hidden text-muted-foreground sm:inline" suppressHydrationWarning>
         Last updated {time}
@@ -251,15 +248,13 @@ function Shell({
             </div>
           ))}
         </nav>
-        <div className="m-3 rounded-md border border-risk-medium/30 bg-demo px-3 py-2.5">
-          <div className="text-[10px] font-bold uppercase tracking-wide text-demo-foreground">
-            Demo mode
-          </div>
-          <div className="text-[11px] text-demo-foreground/80">Synthetic prototype data</div>
+        <div className="m-3">
+          <span className="inline-flex items-center rounded border bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+            Prototype
+          </span>
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <DemoBanner />
         <nav className="flex gap-1 overflow-x-auto border-b bg-card px-2 py-1.5 lg:hidden">
           {flat.map((n) => (
             <Link

@@ -44,6 +44,8 @@ interface Ctx {
   /** true when AWS API Gateway is configured (VITE_NALASETU_API_URL is set) */
   awsMode: boolean;
   awsStatus: AwsConnStatus;
+  awsDrainSource: "dynamodb" | "demo" | null;
+  bedrockVerifiedAt: string | null;
   scenario: Scenario;
   weatherMode: WeatherMode;
   weather: WeatherInfo;
@@ -68,6 +70,7 @@ interface Ctx {
   submitProof: (taskId: string) => Promise<void>;
   review: (taskId: string, decision: "APPROVED" | "REJECTED") => void;
   addReport: (r: Omit<CitizenReport, "id" | "createdAt">) => string;
+  recordVerificationMode: (mode: "lovable-ai" | "bedrock" | "demo" | "fallback") => void;
   resetDemo: () => void;
 }
 
@@ -99,6 +102,8 @@ export function NalaProvider({ children }: { children: ReactNode }) {
   const [awsStatus, setAwsStatus] = useState<AwsConnStatus>(
     AWS_CONFIGURED ? "idle" : "unconfigured",
   );
+  const [awsDrainSource, setAwsDrainSource] = useState<"dynamodb" | "demo" | null>(null);
+  const [bedrockVerifiedAt, setBedrockVerifiedAt] = useState<string | null>(null);
   const sRef = useRef(s); sRef.current = s;
 
   useEffect(() => {
@@ -115,13 +120,15 @@ export function NalaProvider({ children }: { children: ReactNode }) {
     if (!ready || !AWS_CONFIGURED) return;
     setAwsStatus("checking");
     void listDrains().then((res) => {
-      if (res.ok && res.data.length > 0) {
-        const bases = res.data.map(awsDrainToBase);
-        setS((p) => ({ ...p, bases }));
+      if (res.ok && Array.isArray(res.data.drains) && (res.data.source === "dynamodb" || res.data.source === "demo")) {
+        if (res.data.drains.length > 0) {
+          const bases = res.data.drains.map(awsDrainToBase);
+          setS((p) => ({ ...p, bases }));
+        }
+        setAwsDrainSource(res.data.source);
         setAwsStatus("connected");
       } else {
-        // AWS reachable but no drains yet, or not reachable — keep demo data
-        setAwsStatus(res.ok ? "connected" : "error");
+        setAwsStatus("error");
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -317,11 +324,15 @@ export function NalaProvider({ children }: { children: ReactNode }) {
     if (AWS_CONFIGURED) void patchSettings({ weatherMode }).then((res) => { if (!res.ok) console.warn("[AWS] patchSettings failed:", res.error); });
   };
 
+  const recordVerificationMode = (mode: "lovable-ai" | "bedrock" | "demo" | "fallback") => {
+    if (mode === "bedrock") setBedrockVerifiedAt(new Date().toISOString());
+  };
+
   const value: Ctx = {
-    ready, awsMode: AWS_CONFIGURED, awsStatus, scenario: s.scenario, weatherMode: s.weatherMode, weather, forecastMm, drains, crews: DEMO_CREWS, tasks: s.tasks, plan: s.plan, audit: s.audit, reports: s.reports, drainRain,
+    ready, awsMode: AWS_CONFIGURED, awsStatus, awsDrainSource, bedrockVerifiedAt, scenario: s.scenario, weatherMode: s.weatherMode, weather, forecastMm, drains, crews: DEMO_CREWS, tasks: s.tasks, plan: s.plan, audit: s.audit, reports: s.reports, drainRain,
     setScenario: setScenarioWithAwsSync,
     setWeatherMode: setWeatherModeWithAwsSync,
-    refreshWeather, generatePlan, removeFromPlan, reassign, addToPlan, dispatchAll, transition, setPhoto, submitProof, review, addReport,
+    refreshWeather, generatePlan, removeFromPlan, reassign, addToPlan, dispatchAll, transition, setPhoto, submitProof, review, addReport, recordVerificationMode,
     resetDemo: () => { setS(fresh()); setLive(null); toast.success("Demo data reset."); },
   };
   return <C.Provider value={value}>{children}</C.Provider>;

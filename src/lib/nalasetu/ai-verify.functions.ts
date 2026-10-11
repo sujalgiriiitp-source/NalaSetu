@@ -25,6 +25,7 @@ export const verifyProof = createServerFn({ method: "POST" })
         if (res.ok) {
           const body = await res.json();
           const v = body.verification ?? body;
+          const mode = ["bedrock", "demo", "fallback"].includes(v.mode) ? v.mode : "fallback";
           return {
             ok: true as const,
             verdict: (v.verdict === "PASS" ? "PASS" : "REVIEW") as "PASS" | "REVIEW",
@@ -33,7 +34,7 @@ export const verifyProof = createServerFn({ method: "POST" })
             sameLocation: v.sameLocation ?? true,
             obstructionBefore: v.obstructionBefore ?? true,
             obstructionAfter: v.obstructionAfter ?? false,
-            mode: v.mode ?? "bedrock",
+            mode,
           };
         }
         // Non-OK HTTP — fall through to Lovable fallback

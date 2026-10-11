@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { AppShell, Kpi } from "@/components/nala/AppShell";
 import { Tag } from "@/components/nala/badges";
 import { verifyProof } from "@/lib/nalasetu/ai-verify.functions";
+import type { VerificationMode } from "@/lib/nalasetu/aws-api";
+import { useNala } from "@/lib/nalasetu/store";
 import { checkExpectation, FIXTURES, urlToJpegDataUrl, type Actual, type Fixture } from "@/lib/nalasetu/verification-fixtures";
 
 export const Route = createFileRoute("/verification-lab")({
@@ -21,10 +23,11 @@ export const Route = createFileRoute("/verification-lab")({
   component: LabPage,
 });
 
-type Result = { state: "running" } | { state: "done"; actual: Actual; reason: string; fails: string[]; ms: number } | { state: "error"; error: string };
+type Result = { state: "running" } | { state: "done"; actual: Actual; mode: VerificationMode; reason: string; fails: string[]; ms: number } | { state: "error"; error: string };
 
 function LabPage() {
   const verify = useServerFn(verifyProof);
+  const nala = useNala();
   const [results, setResults] = useState<Record<string, Result>>({});
   const [running, setRunning] = useState(false);
 
@@ -35,8 +38,9 @@ function LabPage() {
       const [b, a] = await Promise.all([urlToJpegDataUrl(f.before), urlToJpegDataUrl(f.after)]);
       const res = await verify({ data: { before: b, after: f.after === f.before ? b : a, drainId: "TEST", drainName: f.title } });
       if (!res.ok) { setResults((r) => ({ ...r, [f.id]: { state: "error", error: res.error } })); return false; }
+      nala.recordVerificationMode(res.mode);
       const actual: Actual = { verdict: res.verdict, confidence: res.confidence, sameLocation: res.sameLocation, obstructionAfter: res.obstructionAfter };
-      setResults((r) => ({ ...r, [f.id]: { state: "done", actual, reason: res.reason, fails: checkExpectation(f.expect, actual), ms: Math.round(performance.now() - t0) } }));
+      setResults((r) => ({ ...r, [f.id]: { state: "done", actual, mode: res.mode, reason: res.reason, fails: checkExpectation(f.expect, actual), ms: Math.round(performance.now() - t0) } }));
       return true;
     } catch (e) {
       setResults((r) => ({ ...r, [f.id]: { state: "error", error: (e as Error).message } }));
@@ -85,7 +89,7 @@ function LabPage() {
                   {r?.state === "error" && <p className="font-medium text-st-review">{r.error}</p>}
                   {r?.state === "done" && (<>
                     <div className={`flex items-center gap-1 font-semibold ${r.fails.length ? "text-st-review" : "text-risk-low"}`}>{r.fails.length ? <XCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}{r.fails.length ? "Unexpected result" : "As expected"} · {r.ms} ms</div>
-                    <div>AI: <b>{r.actual.verdict}</b> · {r.actual.confidence}% · {r.actual.sameLocation ? "same place" : "different place"} · {r.actual.obstructionAfter ? "still blocked" : "cleared"}</div>
+                    <div>AI: <b>{r.actual.verdict}</b> · {r.actual.confidence}% · {r.actual.sameLocation ? "same place" : "different place"} · {r.actual.obstructionAfter ? "still blocked" : "cleared"} · Mode: <b>{r.mode}</b></div>
                     <p className="text-muted-foreground">{r.reason}</p>
                     {r.fails.map((x) => <p key={x} className="text-st-review">✗ {x}</p>)}
                   </>)}
