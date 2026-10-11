@@ -982,7 +982,10 @@ export async function handler(event) {
 async function attemptVerification(beforeData, afterData, drainId, proofId = "unknown") {
   // If Bedrock is not configured, fall back to demo logic immediately.
   if (!BEDROCK_MODEL_ID) {
-    return runDemoVerification(beforeData, afterData, drainId);
+    return {
+      ...runDemoVerification(beforeData, afterData, drainId),
+      reason: "BEDROCK_MODEL_ID is not configured in Lambda; this is a demo result and Bedrock was not invoked.",
+    };
   }
 
   // Missing data -> REVIEW
@@ -1114,7 +1117,14 @@ Use REVIEW when:
 
   } catch (err) {
     console.error(`[Bedrock Verification] Failed for drain ${drainId}, proof ${proofId}:`, err);
-    return { verdict: "REVIEW", confidence: 0, reason: "AI verification failed or timed out. Routed to manual review.", mode: "fallback" };
+    const code = err?.name ?? err?.Code ?? "Error";
+    const detail = err?.message ?? String(err);
+    return {
+      verdict: "REVIEW",
+      confidence: 0,
+      reason: `Bedrock verification failed (${code}): ${detail}. Routed to manual review.`,
+      mode: "fallback",
+    };
   }
 }
 

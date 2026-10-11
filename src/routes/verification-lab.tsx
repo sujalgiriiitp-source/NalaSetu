@@ -6,7 +6,7 @@ import { CheckCircle2, FlaskConical, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppShell, Kpi } from "@/components/nala/AppShell";
 import { Tag } from "@/components/nala/badges";
-import { verifyProof } from "@/lib/nalasetu/ai-verify.functions";
+import { verifyProofWithLambda } from "@/lib/nalasetu/ai-verify.functions";
 import type { VerificationMode } from "@/lib/nalasetu/aws-api";
 import { useNala } from "@/lib/nalasetu/store";
 import { checkExpectation, FIXTURES, urlToJpegDataUrl, type Actual, type Fixture } from "@/lib/nalasetu/verification-fixtures";
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/verification-lab")({
 type Result = { state: "running" } | { state: "done"; actual: Actual; mode: VerificationMode; reason: string; fails: string[]; ms: number } | { state: "error"; error: string };
 
 function LabPage() {
-  const verify = useServerFn(verifyProof);
+  const verify = useServerFn(verifyProofWithLambda);
   const nala = useNala();
   const [results, setResults] = useState<Record<string, Result>>({});
   const [running, setRunning] = useState(false);
@@ -43,7 +43,7 @@ function LabPage() {
         setResults((r) => ({ ...r, [f.id]: { state: "error", error: res.error } }));
         return false;
       }
-      nala.recordVerificationMode(res.mode);
+      nala.recordVerificationMode(res.mode, res.reason);
       const actual: Actual = { verdict: res.verdict, confidence: res.confidence, sameLocation: res.sameLocation, obstructionAfter: res.obstructionAfter };
       setResults((r) => ({ ...r, [f.id]: { state: "done", actual, mode: res.mode, reason: res.reason, fails: checkExpectation(f.expect, actual), ms: Math.round(performance.now() - t0) } }));
       return true;
