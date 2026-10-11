@@ -79,7 +79,7 @@ interface Ctx {
   review: (taskId: string, decision: "APPROVED" | "REJECTED") => void;
   addReport: (r: Omit<CitizenReport, "id" | "createdAt">) => string;
   beginBedrockVerification: () => void;
-  recordVerificationMode: (mode: VerificationMode) => void;
+  recordVerificationMode: (mode: VerificationMode, reason?: string) => void;
   recordVerificationUnavailable: (message: string) => void;
   resetDemo: () => void;
 }
@@ -359,7 +359,7 @@ export function NalaProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const recordVerificationMode = (mode: VerificationMode) => {
+  const recordVerificationMode = (mode: VerificationMode, reason?: string) => {
     const checkedAt = new Date().toISOString();
     if (mode === "bedrock") {
       setBedrockVerification({
@@ -371,13 +371,13 @@ export function NalaProvider({ children }: { children: ReactNode }) {
       setBedrockVerification({
         status: "ERROR",
         checkedAt,
-        message: "Verification used the backend fallback; Bedrock did not complete successfully.",
+        message: `Bedrock verification failed; the backend returned fallback mode.${reason ? ` ${reason}` : ""}`,
       });
     } else {
       setBedrockVerification({
         status: "NOT_VERIFIED",
         checkedAt,
-        message: `Test Lab returned mode=${mode}; this does not verify Bedrock.`,
+        message: `Test Lab returned mode=${mode}; this does not verify Bedrock.${reason ? ` ${reason}` : ""}`,
       });
     }
   };
