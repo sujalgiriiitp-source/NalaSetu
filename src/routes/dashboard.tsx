@@ -101,7 +101,7 @@ function Dashboard() {
     <AppShell title="Dashboard" subtitle="Pre-rain operations overview · Demo Ward 7 (synthetic)">
       <div className="mx-auto max-w-[1400px] space-y-4">
         {/* Command hero */}
-        <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-card px-5 py-4 shadow-card">
+        <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-card px-4 py-4 shadow-card sm:px-5">
           <div className="flex items-center gap-4">
             <span className={`grid h-11 w-11 place-items-center rounded-lg ${heavy ? "bg-risk-high/10 text-risk-high" : "bg-info/10 text-info"}`}><CloudRain className="h-5 w-5" aria-hidden /></span>
             <div>
@@ -118,7 +118,7 @@ function Dashboard() {
         </section>
 
         {/* Status strip */}
-        <section className="grid grid-cols-2 divide-x divide-y rounded-xl border bg-card shadow-card sm:grid-cols-5 sm:divide-y-0">
+        <section className="grid grid-cols-2 divide-x divide-y rounded-xl border bg-card shadow-card sm:grid-cols-3 sm:divide-y-0 lg:grid-cols-5">
           <Strip label="High risk" value={counts.HIGH} hint="Priority drains" tone="high" />
           <Strip label="Plan" value={n.plan ? (n.plan.dispatched ? "Dispatched" : "Generated") : "Not generated"} hint={n.plan ? `${n.plan.highCoverage}% high-risk coverage` : "Run planner"} />
           <Strip label="Crews" value={`${totalH}h`} hint={n.plan ? `${n.plan.hoursPlanned}h planned` : "Available"} />
@@ -160,10 +160,10 @@ function Dashboard() {
             </ol>
           </Panel>
 
-          <Panel className="lg:col-span-7" title="Highest-Risk Drains" subtitle="Priority based on rainfall, choke history, terrain and reports." right={<Link to="/drains" className="text-xs font-medium text-muted-foreground hover:text-foreground">All drains →</Link>}>
+          <Panel className="lg:col-span-7" title="Highest-Risk Drains" subtitle="Priority based on rainfall, choke history, terrain and reports." right={<Link to="/drains" className="rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info">All drains →</Link>}>
             <div className="space-y-2">
               {top.map((d) => (
-                <div key={d.id} onMouseEnter={() => setFocus(d.id)} className="group relative flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-lg border bg-card py-2.5 pl-4 pr-3 transition-all duration-150 hover:border-foreground/20 hover:shadow-raised">
+                <div key={d.id} onMouseEnter={() => setFocus(d.id)} onFocus={() => setFocus(d.id)} className="group relative flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-lg border bg-card py-2.5 pl-4 pr-3 transition-all duration-150 hover:border-foreground/20 hover:shadow-raised">
                   <span className={`absolute inset-y-0 left-0 w-1 ${BAR[d.riskBand]}`} />
                   <div className="min-w-0">
                     <div className="text-sm"><span className="font-mono text-xs text-muted-foreground">{d.id}</span> <span className="font-medium">{d.name}</span></div>
@@ -171,7 +171,7 @@ function Dashboard() {
                       <span>{n.drainRain(d)} mm</span><span>{d.historicalChokes} chokes</span><span>{d.lowLying ? "Low-lying" : `${d.slope} slope`}</span><span>{d.cleaningTimeMin} min cleaning</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2"><RiskBadge band={d.riskBand} score={d.riskScore} /><Button size="sm" variant="outline" onClick={() => setSel(d.id)}>View details</Button></div>
+                  <div className="flex items-center gap-2"><RiskBadge band={d.riskBand} score={d.riskScore} /><Button size="sm" variant="outline" onFocus={() => setFocus(d.id)} onClick={() => setSel(d.id)}>View details</Button></div>
                 </div>
               ))}
             </div>
@@ -191,7 +191,7 @@ function Dashboard() {
               {n.crews.map((c) => {
                 const used = Math.min(c.availableHours * 60, crewMin(c.id));
                 return (
-                  <div key={c.id} className="grid grid-cols-[110px_1fr_auto] items-center gap-3 text-sm">
+                  <div key={c.id} className="grid grid-cols-[minmax(86px,110px)_minmax(0,1fr)_auto] items-center gap-3 text-sm">
                     <span className="font-medium">{c.name}</span>
                     <span className="h-2 overflow-hidden rounded-full bg-muted"><span className="block h-full rounded-full bg-info" style={{ width: `${(used / (c.availableHours * 60)) * 100}%` }} /></span>
                     <span className="text-xs tabular-nums text-muted-foreground">{n.plan ? `${(used / 60).toFixed(1)} / ` : ""}{c.availableHours}h</span>

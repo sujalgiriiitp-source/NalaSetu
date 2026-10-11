@@ -16,7 +16,7 @@ const ISSUES = [
 const schema = z.object({ drainId: z.string().min(1, "Choose the nearest drain"), issue: z.string().min(1, "Choose a problem"), location: z.string().trim().min(2, "Describe the location").max(120) });
 
 function StepLabel({ n, title, done }: { n: number; title: string; done: boolean }) {
-  return <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><span className={`grid h-6 w-6 place-items-center rounded-full border text-xs tabular-nums ${done ? "border-risk-low bg-risk-low text-primary-foreground" : "bg-card"}`}>{done ? <Check className="h-3 w-3" /> : n}</span>{title}</div>;
+  return <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><span aria-hidden="true" className={`grid h-6 w-6 place-items-center rounded-full border text-xs tabular-nums ${done ? "border-risk-low bg-risk-low text-primary-foreground" : "bg-card"}`}>{done ? <Check className="h-3 w-3" /> : n}</span>{title}</div>;
 }
 
 export function CitizenReportForm({ showImpact = true }: { showImpact?: boolean }) {
@@ -49,15 +49,17 @@ export function CitizenReportForm({ showImpact = true }: { showImpact?: boolean 
           <form onSubmit={submit} className="space-y-5 text-sm">
             <div>
               <StepLabel n={1} title="Location" done={!!form.drainId && form.location.trim().length >= 2} />
-              <select aria-label="Nearest drain" className={cls} value={form.drainId} onChange={(e) => setForm({ ...form, drainId: e.target.value })}><option value="">Nearest drain…</option>{n.drains.map((d) => <option key={d.id} value={d.id}>{d.id} · {d.name}</option>)}</select>
-              <Input aria-label="Location details" className="mt-2 h-11" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Landmark, e.g. near bus stop" />
+              <label className="sr-only" htmlFor="report-drain">Nearest drain</label>
+              <select id="report-drain" className={cls} value={form.drainId} onChange={(e) => setForm({ ...form, drainId: e.target.value })}><option value="">Nearest drain…</option>{n.drains.map((d) => <option key={d.id} value={d.id}>{d.id} · {d.name}</option>)}</select>
+              <label className="sr-only" htmlFor="report-location">Location details</label>
+              <Input id="report-location" className="mt-2 h-11" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Landmark, e.g. near bus stop" />
             </div>
             <div>
               <StepLabel n={2} title="Problem" done={!!form.issue} />
               <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Problem">
                 {ISSUES.map(({ label, icon: I }) => (
                   <button type="button" role="radio" aria-checked={form.issue === label} key={label} onClick={() => setForm({ ...form, issue: label })}
-                    className={`flex h-16 flex-col items-center justify-center gap-1 rounded-lg border text-xs font-medium transition-colors ${form.issue === label ? "border-primary bg-accent text-foreground ring-1 ring-primary" : "bg-card text-muted-foreground hover:text-foreground"}`}>
+                    className={`flex h-16 flex-col items-center justify-center gap-1 rounded-lg border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info ${form.issue === label ? "border-primary bg-accent text-foreground ring-1 ring-primary" : "bg-card text-muted-foreground hover:text-foreground"}`}>
                     <I className="h-5 w-5" aria-hidden />{label}
                   </button>
                 ))}
@@ -65,7 +67,8 @@ export function CitizenReportForm({ showImpact = true }: { showImpact?: boolean 
             </div>
             <div>
               <StepLabel n={3} title="Photo (optional)" done={photo} />
-              <Input type="file" className="h-11 py-2" accept="image/jpeg,image/png,image/webp" onChange={async (e) => { const f = e.target.files?.[0]; if (f) { try { await processPhoto(f); setPhoto(true); toast.success("Photo attached (demo, not stored)."); } catch (er) { toast.error((er as Error).message); e.target.value = ""; } } }} />
+              <label className="sr-only" htmlFor="report-photo">Optional photo</label>
+              <Input id="report-photo" type="file" className="h-11 py-2" accept="image/jpeg,image/png,image/webp" onChange={async (e) => { const f = e.target.files?.[0]; if (f) { try { await processPhoto(f); setPhoto(true); toast.success("Photo attached (demo, not stored)."); } catch (er) { toast.error((er as Error).message); e.target.value = ""; } } }} />
             </div>
             <div>
               <StepLabel n={4} title="Submit" done={false} />

@@ -11,7 +11,7 @@ const RISK: Record<RiskBand, string> = {
 export function RiskBadge({ band, score, className }: { band: RiskBand; score?: number; className?: string }) {
   const Icon = band === "HIGH" ? AlertTriangle : band === "MEDIUM" ? Clock : CheckCircle2;
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs font-semibold", RISK[band], className)}>
+    <span className={cn("inline-flex min-h-6 items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold", RISK[band], className)}>
       <Icon className="h-3 w-3" aria-hidden />
       {score !== undefined && <span className="tabular-nums">{score}</span>}
       {band}
@@ -32,7 +32,7 @@ const ST: Record<TaskStatus, [string, typeof Circle]> = {
 export function StatusBadge({ status }: { status: TaskStatus }) {
   const [c, Icon] = ST[status];
   return (
-    <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded border px-1.5 py-0.5 text-xs font-medium", c)}>
+    <span className={cn("inline-flex min-h-6 items-center gap-1 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium", c)}>
       <Icon className="h-3 w-3" aria-hidden />
       {STATUS_LABEL[status]}
     </span>
@@ -41,10 +41,10 @@ export function StatusBadge({ status }: { status: TaskStatus }) {
 
 export function SourceBadge({ source }: { source: "live" | "cached" | "demo" }) {
   const c = source === "live" ? "bg-risk-low/10 text-risk-low border-risk-low/30" : source === "cached" ? "bg-st-proof/10 text-st-proof border-st-proof/30" : "bg-demo text-demo-foreground border-risk-medium/40";
-  return <span className={cn("inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide", c)}><Database className="h-3 w-3" aria-hidden />{source}</span>;
+  return <span className={cn("inline-flex min-h-5 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide", c)}><Database className="h-3 w-3" aria-hidden />{source}</span>;
 }
 
 export function Tag({ children, tone = "muted" }: { children: React.ReactNode; tone?: "muted" | "demo" | "ok" }) {
   const c = tone === "demo" ? "bg-demo text-demo-foreground border-risk-medium/40" : tone === "ok" ? "bg-risk-low/10 text-risk-low border-risk-low/30" : "bg-muted text-muted-foreground border-border";
-  return <span className={cn("inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide", c)}>{children}</span>;
+  return <span className={cn("inline-flex min-h-5 items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide", c)}>{children}</span>;
 }

@@ -69,7 +69,7 @@ function LabPage() {
       <Button onClick={runAll} disabled={running}>{running ? <Loader2 className="h-4 w-4 animate-spin" /> : <FlaskConical className="h-4 w-4" />}Run all scenarios</Button>
     }>
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Kpi label="Scenarios" value={FIXTURES.length} />
           <Kpi label="Passed" value={`${passed} / ${done.length}`} tone={done.length && passed === done.length ? "ok" : undefined} />
           <Kpi label="Flagged for review" value={done.filter((r) => r.actual.verdict === "REVIEW").length} hint="sent to officer" />
@@ -81,23 +81,39 @@ function LabPage() {
           {FIXTURES.map((f) => {
             const r = results[f.id];
             return (
-              <article key={f.id} className="rounded-md border bg-card">
+              <article key={f.id} className="rounded-lg border bg-card shadow-card">
                 <div className="flex items-center justify-between border-b px-3 py-2">
                   <div><div className="text-sm font-semibold">{f.title}</div><div className="text-xs text-muted-foreground">{f.description}</div></div>
                   <Button size="sm" variant="outline" disabled={running || r?.state === "running"} onClick={() => runOne(f)}>Run</Button>
                 </div>
-                <div className="grid grid-cols-2 gap-1 p-2">
+                <div className="grid grid-cols-2 gap-2 p-3">
                   {[["Before", f.before], ["After", f.after]].map(([l, s]) => <figure key={l}><img src={s} alt={`${f.title} ${l}`} loading="lazy" width={944} height={704} className="aspect-[4/3] w-full rounded object-cover" /><figcaption className="text-center text-[10px] font-semibold uppercase text-muted-foreground">{l}</figcaption></figure>)}
                 </div>
                 <div className="space-y-1.5 px-3 pb-3 text-xs">
-                  <div className="flex flex-wrap gap-1"><Tag>Expect {f.expect.verdict}</Tag>{f.expect.minConfidence !== undefined && <Tag>conf ≥ {f.expect.minConfidence}</Tag>}{f.expect.maxConfidence !== undefined && <Tag>conf ≤ {f.expect.maxConfidence}</Tag>}{f.expect.sameLocation !== undefined && <Tag>{f.expect.sameLocation ? "same place" : "different place"}</Tag>}{f.expect.obstructionAfter !== undefined && <Tag>{f.expect.obstructionAfter ? "still blocked" : "cleared"}</Tag>}</div>
+                  <div className="flex flex-wrap gap-1">
+                    <Tag tone={f.expect.verdict === "PASS" ? "ok" : "demo"}>
+                      Expected {f.expect.verdict}
+                    </Tag>
+                    {f.expect.minConfidence !== undefined && (
+                      <Tag>conf ≥ {f.expect.minConfidence}</Tag>
+                    )}
+                    {f.expect.maxConfidence !== undefined && (
+                      <Tag>conf ≤ {f.expect.maxConfidence}</Tag>
+                    )}
+                    {f.expect.sameLocation !== undefined && (
+                      <Tag>{f.expect.sameLocation ? "same place" : "different place"}</Tag>
+                    )}
+                    {f.expect.obstructionAfter !== undefined && (
+                      <Tag>{f.expect.obstructionAfter ? "still blocked" : "cleared"}</Tag>
+                    )}
+                  </div>
                   {!r && <p className="text-muted-foreground">Not run yet.</p>}
                   {r?.state === "running" && <p className="flex items-center gap-1 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Assessing photos…</p>}
                   {r?.state === "error" && <p className="font-medium text-st-review">{r.error}</p>}
                   {r?.state === "done" && (<>
                     <div className={`flex items-center gap-1 font-semibold ${r.fails.length ? "text-st-review" : "text-risk-low"}`}>{r.fails.length ? <XCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}{r.fails.length ? "Unexpected result" : "As expected"} · {r.ms} ms</div>
-                    <div>AI: <b>{r.actual.verdict}</b> · {r.actual.confidence}% · {r.actual.sameLocation ? "same place" : "different place"} · {r.actual.obstructionAfter ? "still blocked" : "cleared"} · Mode: <b>{r.mode}</b></div>
-                    <p className="text-muted-foreground">{r.reason}</p>
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">AI: <b>{r.actual.verdict}</b> · {r.actual.confidence}% · {r.actual.sameLocation ? "same place" : "different place"} · {r.actual.obstructionAfter ? "still blocked" : "cleared"} · Mode: <Tag tone={r.mode === "bedrock" ? "ok" : "demo"}>{r.mode}</Tag></div>
+                    <p className="rounded-md bg-muted/50 p-2 text-muted-foreground">{r.reason}</p>
                     {r.fails.map((x) => <p key={x} className="text-st-review">✗ {x}</p>)}
                   </>)}
                 </div>

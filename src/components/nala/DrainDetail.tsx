@@ -12,7 +12,7 @@ import type { Drain } from "@/lib/nalasetu/types";
 
 function Section({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {
   return (
-    <section className="border-t pt-3">
+    <section className="border-t pt-4">
       <div className="mb-2 flex items-center justify-between"><h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{title}</h3>{right}</div>
       {children}
     </section>
@@ -38,8 +38,8 @@ export function DrainDetailBody({ drain, onClose }: { drain: Drain; onClose?: ()
   ] as const;
   const maxC = Math.max(...rows.map((x) => x[4]), 1);
   return (
-    <div className="space-y-4 text-sm">
-      <div className="rounded-lg border bg-muted/40 p-3">
+    <div className="space-y-5 text-sm">
+      <div className="rounded-lg border bg-muted/40 p-4">
         <div className="flex items-end justify-between gap-3">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Risk score</div>
@@ -51,7 +51,7 @@ export function DrainDetailBody({ drain, onClose }: { drain: Drain; onClose?: ()
       </div>
 
       <Section title="Overview">
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+        <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
           {([["Forecast (72h)", `${rain} mm`], ["Historical chokes", drain.historicalChokes], ["Citizen reports (30d)", drain.citizenReports], ["Terrain", drain.slope], ["Low-lying", drain.lowLying ? "Yes" : "No"], ["Last cleaned", drain.lastCleaned], ["Cleaning time", `${drain.cleaningTimeMin} min`], ["Population weight", drain.adjacentPopulationWeight], ["Ward", drain.ward], ["Coords", `${drain.lat}, ${drain.lng}`]] as const).map(([k, v]) => (
             <div key={k}><dt className="text-[11px] text-muted-foreground">{k}</dt><dd className={`font-medium tabular-nums ${k === "Terrain" ? "capitalize" : ""}`}>{v}</dd></div>
           ))}
@@ -108,7 +108,7 @@ export function DrainSheet({ drain, onOpenChange }: { drain: Drain | null; onOpe
   const mobile = useIsMobile();
   return (
     <Sheet open={!!drain} onOpenChange={onOpenChange}>
-      <SheetContent side={mobile ? "bottom" : "right"} className={mobile ? "h-[100dvh] overflow-y-auto px-4" : "w-full overflow-y-auto px-4 sm:max-w-md"}>
+      <SheetContent side={mobile ? "bottom" : "right"} className={mobile ? "h-[100dvh] overflow-y-auto px-4" : "w-full overflow-y-auto px-4 sm:max-w-lg"}>
         {drain && (<>
           <SheetHeader className="p-0 pb-3 pt-4">
             <div className="font-mono text-xs text-muted-foreground">{drain.id}</div>

@@ -40,7 +40,7 @@ function CrewPage() {
     <div className="min-h-screen bg-background">
       <DemoBanner />
       <header className="sticky top-0 z-10 border-b bg-card/95 px-4 py-3 backdrop-blur">
-        <div className="mx-auto flex max-w-md items-center justify-between gap-3">
+        <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground"><Droplets className="h-4 w-4" aria-hidden /></span>
             <div><div className="text-sm font-semibold">NalaSetu Crew</div><div className="text-[11px] text-muted-foreground tabular-nums">{doneCount} of {tasks.length} done today</div></div>
@@ -50,12 +50,12 @@ function CrewPage() {
           </select>
         </div>
       </header>
-      <main className="mx-auto max-w-md space-y-4 p-4 pb-10">
+      <main className="mx-auto max-w-xl space-y-4 p-3 pb-10 sm:p-4">
         <div className="flex items-center justify-between">
           {session?.role === "OFFICER" ? <Link to="/dashboard" className="inline-flex items-center gap-1 text-xs text-muted-foreground"><ArrowLeft className="h-3 w-3" />Officer view</Link> : <Link to="/tasks" className="text-xs text-muted-foreground underline-offset-4 hover:underline">Verification status</Link>}
           <UserMenu />
         </div>
-        {!tasks.length && <div className="rounded-xl border bg-card p-8 text-center"><Clock className="mx-auto h-6 w-6 text-muted-foreground" /><p className="mt-2 font-semibold">No tasks yet</p><p className="text-sm text-muted-foreground">{crewName(crewId)} has nothing assigned. An officer must dispatch a plan first.</p></div>}
+        {!tasks.length && <div className="rounded-xl border bg-card p-8 text-center shadow-card"><Clock className="mx-auto h-6 w-6 text-muted-foreground" /><p className="mt-2 font-semibold">No tasks yet</p><p className="text-sm text-muted-foreground">{crewName(crewId)} has nothing assigned. An officer must dispatch a plan first.</p></div>}
         {current && <><div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Today's task</div><TaskCard key={current.id} task={current} hero /></>}
         {!current && tasks.length > 0 && <div className="rounded-xl border border-risk-low/30 bg-risk-low/10 p-4 text-sm font-medium text-risk-low">All assigned tasks have proof submitted. Good work.</div>}
         {rest.length > 0 && <div className="pt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Other tasks</div>}
@@ -74,11 +74,11 @@ function stepOf(status: TaskStatus, t: Task) {
 
 function Stepper({ step }: { step: number }) {
   return (
-    <ol className="flex items-center gap-1" aria-label="Task progress">
+    <ol className="flex items-start gap-1" aria-label="Task progress">
       {STEPS.map((s, i) => (
         <li key={s} className="flex flex-1 flex-col items-center gap-1" aria-current={i === step ? "step" : undefined}>
-          <span className={`grid h-6 w-6 place-items-center rounded-full border text-[11px] font-bold tabular-nums transition-colors ${i < step ? "border-risk-low bg-risk-low text-primary-foreground" : i === step ? "border-primary bg-primary text-primary-foreground" : "bg-card text-muted-foreground"}`}>{i < step ? <Check className="h-3 w-3" /> : i + 1}</span>
-          <span className={`text-[10px] ${i === step ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{s}</span>
+          <span className={`grid h-7 w-7 place-items-center rounded-full border text-[11px] font-bold tabular-nums transition-colors ${i < step ? "border-risk-low bg-risk-low text-primary-foreground" : i === step ? "border-primary bg-primary text-primary-foreground" : "bg-card text-muted-foreground"}`}>{i < step ? <Check className="h-3 w-3" /> : i + 1}</span>
+          <span className={`text-center text-[10px] leading-tight ${i === step ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{s}</span>
         </li>
       ))}
     </ol>
@@ -121,9 +121,9 @@ function TaskCard({ task, hero }: { task: Task; hero?: boolean }) {
   const PhotoBtn = ({ kind, disabled }: { kind: "before" | "after"; disabled?: boolean }) => {
     const img = kind === "before" ? task.beforePhoto : task.afterPhoto;
     return (
-      <label className={`relative flex aspect-[4/3] flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border-2 border-dashed text-xs font-semibold ${disabled ? "cursor-not-allowed bg-muted/50 text-muted-foreground/60" : "cursor-pointer bg-muted text-muted-foreground active:scale-[0.98]"} transition-transform`}>
+      <label className={`relative flex aspect-[4/3] flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border-2 border-dashed text-xs font-semibold focus-within:ring-2 focus-within:ring-info ${disabled ? "cursor-not-allowed bg-muted/50 text-muted-foreground/60" : "cursor-pointer bg-muted text-muted-foreground active:scale-[0.98]"} transition-transform`}>
         {img ? <><img src={img} alt={`${kind} photo`} className="h-full w-full object-cover" /><span className="absolute left-1.5 top-1.5 rounded bg-card/90 px-1.5 py-0.5 text-[10px] uppercase text-foreground">{kind} ✓</span></> : busy === kind ? <Loader2 className="h-6 w-6 animate-spin" /> : <><Camera className="h-7 w-7" />{disabled ? "Before photo first" : `Take ${kind} photo`}</>}
-        <input type="file" disabled={disabled} accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" onChange={(e) => onPhoto(kind, e.target.files?.[0])} />
+        <input type="file" aria-label={`${kind} photo`} disabled={disabled} accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" onChange={(e) => onPhoto(kind, e.target.files?.[0])} />
       </label>
     );
   };
@@ -138,15 +138,15 @@ function TaskCard({ task, hero }: { task: Task; hero?: boolean }) {
   }
 
   return (
-    <article className="overflow-hidden rounded-xl border bg-card shadow-raised">
+    <article className="overflow-hidden rounded-xl border bg-card shadow-card">
       <div className={`h-1 ${d.riskBand === "HIGH" ? "bg-risk-high" : d.riskBand === "MEDIUM" ? "bg-risk-medium" : "bg-risk-low"}`} />
-      <div className="space-y-3 p-4">
+      <div className="space-y-3 p-4 sm:p-5">
         <div className="flex items-center justify-between"><span className="font-mono text-sm font-semibold">{d.id}</span><StatusBadge status={d.status} /></div>
         <h2 className="text-xl font-semibold leading-tight">{d.name}</h2>
         <div className="flex flex-wrap items-center gap-2 text-sm"><RiskBadge band={d.riskBand} score={d.riskScore} className="text-sm" /><span className="inline-flex items-center gap-1 text-muted-foreground"><Clock className="h-4 w-4" />~{d.cleaningTimeMin} min</span></div>
         <Stepper step={step} />
       </div>
-      <div className="space-y-2.5 border-t bg-muted/30 p-4">
+      <div className="space-y-2.5 border-t bg-muted/30 p-3 sm:p-4">
         {d.status === "ASSIGNED" && <Button className={big} onClick={() => n.transition(d.id, "EN_ROUTE", actor, "Crew started task")}><Play className="h-5 w-5" />Start Task</Button>}
         {d.status === "EN_ROUTE" && <div className="flex items-center justify-center gap-2 rounded-md bg-st-enroute/10 py-2 text-sm font-semibold text-st-enroute">En route to site</div>}
         {["ASSIGNED", "EN_ROUTE", "CLEANING"].includes(d.status) && (

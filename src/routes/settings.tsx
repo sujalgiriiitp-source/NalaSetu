@@ -72,7 +72,7 @@ function SettingsPage() {
     onClick: () => void;
     children: React.ReactNode;
   }) => (
-    <Button size="sm" variant={on ? "default" : "outline"} onClick={onClick}>
+    <Button size="sm" className="min-h-10" variant={on ? "default" : "outline"} onClick={onClick}>
       {children}
     </Button>
   );
@@ -186,6 +186,7 @@ function SettingsPage() {
           </p>
         </Panel>
         <Panel
+          className="lg:col-span-2"
           title="AWS infrastructure health"
           subtitle="Read-only backend checks; unavailable checks remain unverified"
           right={
@@ -204,7 +205,7 @@ function SettingsPage() {
             </Button>
           }
         >
-          <div className="flex items-center gap-2 mb-3">
+          <div className="mb-3 flex items-center gap-2" aria-live="polite" aria-busy={checkingHealth}>
             {checkingHealth ? (
               <Loader2 className="h-4 w-4 animate-spin text-info" />
             ) : (
@@ -242,7 +243,7 @@ function SettingsPage() {
                     <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-info" />
                     <span className="min-w-0">
                       <span className="block text-xs font-semibold">{s}</span>
-                      <span className="block truncate text-[10px] text-muted-foreground">
+                      <span className="block break-words text-[10px] text-muted-foreground">
                         {detail}
                       </span>
                       <span className="mt-1 block text-[10px] text-muted-foreground">
